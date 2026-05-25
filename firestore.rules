@@ -1,0 +1,251 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: products
+    // Document ID: productId
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (optional)
+    //   - price: number (required)
+    //   - currency: string (required, enum: CUP, MLC, USD, EUR)
+    //   - category: string (required)
+    //   - stock: number (required)
+    //   - image: string (optional, URL)
+    //   - active: bool (required)
+    //   - createdAt: number (required)
+    //
+    // Collection: orders
+    // Document ID: orderId
+    // Fields:
+    //   - customerName: string (required)
+    //   - customerPhone: string (required)
+    //   - customerAddress: string (required)
+    //   - items: list (required, list of objects)
+    //   - totalCUP: number (required)
+    //   - totalMLC: number (required)
+    //   - status: string (required, enum: pending, confirmed, delivered, cancelled)
+    //   - createdAt: number (required)
+    //   - paymentMethod: string (optional)
+    //   - notes: string (optional)
+    //
+    // Collection: settings
+    // Document ID: store
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (required)
+    //   - logo: string (optional)
+    //   - phone: string (required)
+    //   - whatsappNumber: string (required)
+    //   - address: string (required)
+    //   - email: string (optional)
+    //   - cupPaymentInstructions: string (required)
+    //   - mlcPaymentInstructions: string (required)
+    //   - exchangeRate: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isPlatformOwner() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "jopocmg9399@gmail.com");
+    }
+
+    function isStoreOwner(storeId) {
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/stores/$(storeId)) && 
+         get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid);
+    }
+
+    function canManageStore(storeId) {
+      return isPlatformOwner() || isStoreOwner(storeId);
+    }
+
+    function isValidTimestamp(val) {
+      return val is timestamp || val is number;
+    }
+
+    function isValidInventoryEntry(data) {
+      return data.keys().hasAll(['productId', 'productName', 'quantity', 'type', 'multiplier', 'totalUnits', 'createdAt', 'storeId']) &&
+             data.productId is string && data.productName is string &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.type in ['in', 'out', 'adjustment'] &&
+             data.multiplier is number &&
+             data.totalUnits is number &&
+             data.storeId is string &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price', 'category', 'active', 'storeId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 500 &&
+             data.price is number && data.price >= 0 &&
+             data.category is string && data.category.size() > 0 &&
+             data.active is bool &&
+             data.storeId is string &&
+             (!data.keys().contains('currency') || data.currency in ['CUP', 'MLC', 'USD', 'EUR', 'ZELLE']) &&
+             (!data.keys().contains('stock') || data.stock is number) &&
+             (!data.keys().contains('createdAt') || isValidTimestamp(data.createdAt)) &&
+             (!data.keys().contains('packagingOptions') || data.packagingOptions is list);
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['customerName', 'customerPhone', 'customerAddress', 'items', 'totalCUP', 'totalMLC', 'status', 'createdAt', 'paymentMethod', 'storeId']) &&
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() < 500 &&
+             data.customerPhone is string && data.customerPhone.size() < 50 &&
+             data.customerAddress is string && data.customerAddress.size() < 1000 &&
+             data.items is list && data.items.size() > 0 && data.items.size() < 100 &&
+             data.totalCUP is number && 
+             data.totalMLC is number &&
+             data.status in ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] &&
+             data.storeId is string &&
+             (data.createdAt is number || isValidTimestamp(data.createdAt)) &&
+             data.paymentMethod is string;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'description', 'createdAt', 'storeId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.description is string && data.description.size() < 2000 &&
+             data.storeId is string &&
+             (data.createdAt is number || isValidTimestamp(data.createdAt));
+    }
+
+    function isValidSupplier(data) {
+      return data.keys().hasAll(['name', 'phone', 'active', 'createdAt', 'storeId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.phone is string && data.phone.size() < 50 &&
+             data.storeId is string &&
+             data.active is bool &&
+             (data.createdAt is number || isValidTimestamp(data.createdAt));
+    }
+
+    function isValidDailyClose(data) {
+      return data.keys().hasAll(['storeId', 'closedAt', 'closedBy', 'totalSalesCUP', 'totalSalesMLC', 'ordersCount', 'notes']) &&
+             data.storeId is string &&
+             (data.closedAt is number || isValidTimestamp(data.closedAt)) &&
+             data.closedBy is string &&
+             data.totalSalesCUP is number &&
+             data.totalSalesMLC is number &&
+             data.ordersCount is number &&
+             data.notes is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /platform_settings/{docId} {
+      allow read: if true;
+      allow write: if isPlatformOwner();
+    }
+
+    // Stores: Public can read, platform owner can write any, manager can update their own
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create: if isPlatformOwner();
+      allow update: if isPlatformOwner() || isStoreOwner(storeId);
+      allow delete: if isPlatformOwner();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create: if canManageStore(request.resource.data.storeId) && isValidCategory(request.resource.data);
+      allow update: if canManageStore(resource.data.storeId) && isValidCategory(request.resource.data) && request.resource.data.storeId == resource.data.storeId;
+      allow delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if canManageStore(request.resource.data.storeId) && isValidProduct(request.resource.data);
+      allow update: if (canManageStore(resource.data.storeId) && isValidProduct(request.resource.data) && request.resource.data.storeId == resource.data.storeId) || (
+        // Public can update stock during checkout
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastStockUpdate'])
+      );
+      allow delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /orders/{orderId} {
+      allow create: if isValidOrder(request.resource.data);
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && resource.data.storeId != null && isStoreOwner(resource.data.storeId));
+      allow update, delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /inventory_entries/{entryId} {
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && resource.data.storeId != null && isStoreOwner(resource.data.storeId));
+      allow create: if (canManageStore(request.resource.data.storeId) && isValidInventoryEntry(request.resource.data)) || (
+        // Sales record
+        request.resource.data.type == 'out' && isValidInventoryEntry(request.resource.data)
+      );
+      allow delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /suppliers/{supplierId} {
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && resource.data.storeId != null && isStoreOwner(resource.data.storeId));
+      allow create: if canManageStore(request.resource.data.storeId) && isValidSupplier(request.resource.data);
+      allow update: if canManageStore(resource.data.storeId) && isValidSupplier(request.resource.data) && request.resource.data.storeId == resource.data.storeId;
+      allow delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /clients/{clientId} {
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && resource.data.storeId != null && isStoreOwner(resource.data.storeId));
+      allow create: if canManageStore(request.resource.data.storeId);
+      allow update: if canManageStore(resource.data.storeId) && request.resource.data.storeId == resource.data.storeId;
+      allow delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /price_history/{historyId} {
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && resource.data.storeId != null && isStoreOwner(resource.data.storeId));
+      allow create: if canManageStore(request.resource.data.storeId);
+    }
+
+    match /affiliates/{affiliateId} {
+      allow read: if true;
+      allow create: if canManageStore(request.resource.data.storeId);
+      allow update: if canManageStore(resource.data.storeId) && request.resource.data.storeId == resource.data.storeId;
+      allow delete: if canManageStore(resource.data.storeId);
+    }
+
+    match /backups/{backupId} {
+      allow read, write: if isAuthenticated() && (isPlatformOwner() || (resource != null && isStoreOwner(resource.data.storeId)) || (request.resource != null && isStoreOwner(request.resource.data.storeId)));
+    }
+
+    match /daily_closes/{closeId} {
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && (resource == null || isStoreOwner(resource.data.storeId)));
+      allow create: if canManageStore(request.resource.data.storeId) && isValidDailyClose(request.resource.data);
+      allow delete: if canManageStore(request.resource.data.storeId);
+    }
+
+    match /commission_payments/{paymentId} {
+      allow list, get: if isPlatformOwner() || (isAuthenticated() && (resource == null || isStoreOwner(resource.data.storeId)));
+      allow create, update, delete: if isPlatformOwner();
+    }
+
+    match /support_tickets/{ticketId} {
+      allow list: if isAuthenticated() && (isPlatformOwner() || resource.data.userId == request.auth.uid);
+      allow get: if isAuthenticated() && (isPlatformOwner() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && (isPlatformOwner() || request.resource.data.userId == request.auth.uid);
+      allow update: if isAuthenticated() && (isPlatformOwner() || (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid));
+      allow delete: if isAuthenticated() && isPlatformOwner();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

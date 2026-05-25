@@ -1,0 +1,8 @@
+{
+  "name": "PaTí: Plaza Digital",
+  "description": "Plataforma multi-tienda escalable para el comercio cubano, con gestión de comisiones, agrupamiento regional y asistente inteligente de élite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
