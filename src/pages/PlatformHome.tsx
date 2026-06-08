@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { db, loginWithGoogle, logout } from '../firebase';
 import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
 import { Store } from '../types';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, MapPin, ShoppingCart, ArrowRight, ChevronRight, LayoutGrid, LayoutList, LayoutDashboard, Sparkles as SparklesIcon, LogIn, LogOut } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,22 @@ import InteractiveTutorial from '../components/InteractiveTutorial';
 
 export default function PlatformHome() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isPlatformOwner = user?.email === 'jopocmg9399@gmail.com';
+
+  const handleGetStoreClick = async () => {
+    if (user) {
+      navigate('/Dashboard?createStore=true');
+    } else {
+      try {
+        await loginWithGoogle();
+        toast.success('¡Sesión iniciada, asere! Vamos a gestionar tu negocio.');
+        navigate('/Dashboard?createStore=true');
+      } catch (error) {
+        toast.error('Oye, no se pudo iniciar sesión con Google.');
+      }
+    }
+  };
   const [stores, setStores] = useState<Store[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProvince, setSelectedProvince] = useState<string>('Todas');
@@ -68,19 +83,19 @@ export default function PlatformHome() {
     <div className="min-h-screen bg-[#fafaf9] dark:bg-slate-950 font-sans transition-colors duration-500">
       {/* Header Premium */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60 h-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="h-14 w-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center shadow-md border-2 border-slate-100 dark:border-slate-800/80 group-hover:scale-105 transition-transform overflow-hidden p-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 sm:gap-3 group">
+            <div className="h-11 w-11 sm:h-14 sm:w-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center shadow-md border-2 border-slate-100 dark:border-slate-800/80 group-hover:scale-105 transition-transform overflow-hidden p-1">
                {platformSettings?.logo ? (
                  <img src={getProxyImageUrl(platformSettings.logo)} alt="Logo PaTí" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
                ) : (
-                 <ShoppingCart className="text-primary h-6 w-6" />
+                 <ShoppingCart className="text-primary h-5 w-5 sm:h-6 sm:w-6" />
                )}
             </div>
             {!platformSettings?.logo && (
               <div className="flex flex-col">
-                <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase leading-none">{platformSettings?.name || 'PaTí'}</span>
-                <span className="text-[10px] font-bold text-primary tracking-[0.2em] uppercase">Plaza Digital</span>
+                <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase leading-none">{platformSettings?.name || 'PaTí'}</span>
+                <span className="text-[9px] sm:text-[10px] font-bold text-primary tracking-[0.2em] uppercase">Plaza Digital</span>
               </div>
             )}
           </Link>
@@ -97,21 +112,22 @@ export default function PlatformHome() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
              <ThemeToggle />
              {user ? (
-               <div className="flex items-center gap-2">
+               <div className="flex items-center gap-1.5 sm:gap-2">
                  <Link to="/Dashboard">
                    <Button 
                      className={cn(
-                       "rounded-2xl font-black text-[10px] uppercase tracking-widest h-11 px-6 shadow-lg transition-all active:scale-95",
+                       "rounded-2xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest h-10 sm:h-11 px-3 sm:px-6 shadow-lg transition-all active:scale-95",
                        isPlatformOwner 
                          ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20" 
                          : "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-slate-900/20"
                      )}
                    >
-                     <LayoutDashboard className="mr-2 h-3.5 w-3.5" />
-                     {isPlatformOwner ? 'Administrar Plaza' : 'Administrar Tienda'}
+                     <LayoutDashboard className="mr-1 sm:mr-2 h-3.5 w-3.5" />
+                     <span className="hidden sm:inline">{isPlatformOwner ? 'Administrar Plaza' : 'Administrar Tienda'}</span>
+                     <span className="inline sm:hidden">Admin</span>
                    </Button>
                  </Link>
                  <Button 
@@ -125,7 +141,7 @@ export default function PlatformHome() {
                        toast.error('Error al cerrar sesión');
                      }
                    }}
-                   className="rounded-2xl h-11 w-11 hover:text-rose-500 transition-all text-slate-500"
+                   className="rounded-2xl h-10 w-10 sm:h-11 sm:w-11 hover:text-rose-500 transition-all text-slate-500"
                    title="Cerrar sesión"
                  >
                    <LogOut className="h-4 w-4" />
@@ -141,9 +157,11 @@ export default function PlatformHome() {
                      toast.error('Error al iniciar sesión');
                    }
                  }}
-                 className="rounded-2xl font-black text-[10px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 uppercase tracking-widest h-11 px-6 shadow-sm transition-all"
+                 className="rounded-2xl font-black text-[9px] sm:text-[10px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 uppercase tracking-widest h-10 sm:h-11 px-3 sm:px-6 shadow-sm transition-all"
                >
-                 <LogIn className="mr-2 h-3.5 w-3.5" /> Iniciar Sesión (Admin)
+                 <LogIn className="sm:mr-2 h-3.5 w-3.5" /> 
+                 <span className="hidden sm:inline">Iniciar Sesión (Admin)</span>
+                 <span className="inline sm:hidden">Admin</span>
                </Button>
              )}
           </div>
@@ -220,7 +238,7 @@ export default function PlatformHome() {
       {/* Filter Bar */}
       <div className="sticky top-20 z-40 bg-white/60 dark:bg-slate-950/60 backdrop-blur-md border-b border-slate-200/40 dark:border-slate-800/40 py-4 px-6 mb-12">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-6">
-          <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2 md:pb-0">
+          <div className="flex items-center gap-3 overflow-x-auto pretty-scrollbar-x pb-2">
             {provinces.map(prov => (
               <Button
                 key={prov}
@@ -316,16 +334,23 @@ export default function PlatformHome() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         
                         {/* Logo Overlay */}
-                        <div className="absolute bottom-4 left-4 h-16 w-16 bg-white dark:bg-slate-900 rounded-2xl p-2 shadow-xl border-4 border-white dark:border-slate-900 group-hover:-translate-y-2 transition-transform duration-500">
-                          {store.logo ? (
-                            <img src={getProxyImageUrl(store.logo)} alt="" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="h-full w-full bg-slate-50 dark:bg-slate-950 rounded-lg flex items-center justify-center overflow-hidden p-1">
-                               {platformSettings?.logo ? (
-                                 <img src={getProxyImageUrl(platformSettings.logo)} alt="" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
-                               ) : (
-                                 <ShoppingCart className="h-6 w-6 text-primary" />
-                               )}
+                        <div className="absolute bottom-4 left-4 flex gap-2">
+                          <div className="h-16 w-16 bg-white dark:bg-slate-900 rounded-2xl p-2 shadow-xl border-4 border-white dark:border-slate-900 group-hover:-translate-y-2 transition-transform duration-500">
+                            {store.logo ? (
+                              <img src={getProxyImageUrl(store.logo)} alt="" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="h-full w-full bg-slate-50 dark:bg-slate-950 rounded-lg flex items-center justify-center overflow-hidden p-1">
+                                 {platformSettings?.logo ? (
+                                   <img src={getProxyImageUrl(platformSettings.logo)} alt="" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                                 ) : (
+                                   <ShoppingCart className="h-6 w-6 text-primary" />
+                                 )}
+                              </div>
+                            )}
+                          </div>
+                          {(store.storeImage || store.settings?.storeImage) && (
+                            <div className="h-16 w-24 bg-white dark:bg-slate-900 rounded-2xl p-1 shadow-xl border-4 border-white dark:border-slate-900 overflow-hidden group-hover:-translate-y-2 transition-transform duration-500 hidden sm:block">
+                              <img src={getProxyImageUrl(store.storeImage || store.settings?.storeImage)} alt="" className="h-full w-full object-cover rounded-lg" referrerPolicy="no-referrer" />
                             </div>
                           )}
                         </div>
@@ -336,10 +361,10 @@ export default function PlatformHome() {
                         viewType === 'list' ? "flex-1" : ""
                       )}>
                         <div>
-                          <div className="flex items-center justify-between gap-2 mb-3">
-                             <div className="flex items-center gap-2 text-[10px] font-black text-primary uppercase tracking-widest bg-primary/5 px-3 py-1.5 rounded-2xl border border-primary/10">
-                               <MapPin className="h-3 w-3" />
-                               {formatLocation(store.location)}
+                          <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+                             <div className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-widest bg-primary/5 px-3 py-1.5 rounded-2xl border border-primary/10 min-w-0 max-w-[70%] sm:max-w-[75%]" title={formatLocation(store.location)}>
+                               <MapPin className="h-3.5 w-3.5 shrink-0" />
+                               <span className="truncate">{formatLocation(store.location)}</span>
                              </div>
                              {store.featured && (
                                <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border-amber-200 dark:border-amber-800 font-bold px-2 py-0.5 rounded-full text-[9px] shrink-0">
@@ -395,11 +420,12 @@ export default function PlatformHome() {
             Escala tus ventas, gestiona tus envíos y llega a miles de cubanos en todo el país con nuestra tecnología de élite.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-             <Link to="/Dashboard">
-               <Button className="h-14 px-10 rounded-[1.25rem] bg-primary hover:bg-primary/90 text-white font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20">
-                 Quiero mi tienda PaTí
-               </Button>
-             </Link>
+             <Button 
+               onClick={handleGetStoreClick}
+               className="h-14 px-10 rounded-[1.25rem] bg-primary hover:bg-primary/90 text-white font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20"
+             >
+               Quiero mi tienda PaTí
+             </Button>
              <Button 
                onClick={() => setIsTutorialOpen(true)}
                className="h-14 px-10 rounded-[1.25rem] border border-slate-700 dark:border-slate-300 bg-transparent text-white dark:text-slate-950 font-black uppercase text-xs tracking-widest hover:bg-white hover:text-slate-900 dark:hover:bg-slate-900 dark:hover:text-white transition-all duration-300"

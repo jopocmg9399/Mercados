@@ -13,6 +13,7 @@ export interface Store {
   description: string;
   logo?: string;
   banner?: string;
+  storeImage?: string | null;
   ownerId: string;
   ownerName: string;
   ownerPhone: string;
@@ -85,6 +86,11 @@ export interface Supplier {
   notes?: string;
   active: boolean;
   createdAt: number;
+  totalOrders?: number;
+  totalSpentCUP?: number;
+  totalSpentMLC?: number;
+  lastPurchaseAt?: any;
+  tier?: 'Bronce' | 'Plata' | 'Oro' | 'VIP';
 }
 
 export interface OrderItem {
@@ -148,12 +154,18 @@ export interface Order {
   deliveryMethod?: string;
   deliveryCost?: any;
   deliveryZoneName?: string | null;
+  managerName?: string;
+  managerPhone?: string;
+  referralCode?: string | null;
+  affiliateMode?: string;
 }
 
 export interface StoreSettings {
   name: string;
   description: string;
   logo?: string;
+  banner?: string | null;
+  storeImage?: string | null;
   phone: string;
   whatsappNumber: string;
   address: string;

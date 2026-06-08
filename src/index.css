@@ -111,4 +111,22 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .pretty-scrollbar-x::-webkit-scrollbar {
+    height: 4px;
+    background-color: transparent;
+  }
+  .pretty-scrollbar-x::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .pretty-scrollbar-x::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--primary) 40%, transparent);
+    border-radius: 9999px;
+  }
+  .pretty-scrollbar-x::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+  }
+  .pretty-scrollbar-x {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--primary) 40%, transparent) transparent;
+  }
 }

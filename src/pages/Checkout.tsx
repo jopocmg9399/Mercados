@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, CheckCircle2, ShoppingBag, User, Phone, MapPin, ReceiptText, Loader2, Store, Truck, Printer, ExternalLink } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ShoppingBag, User, Phone, MapPin, ReceiptText, Loader2, Store, Truck, Printer, ExternalLink, DollarSign } from "lucide-react";
 import { useCart } from '../hooks/useCart';
 import { useState } from 'react';
 import { toast } from "sonner";
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, doc, updateDoc, increment, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, increment, serverTimestamp, runTransaction, query, where, getDocs, limit, getDoc } from 'firebase/firestore';
 import { useStoreSettings } from '../hooks/useStoreSettings';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
@@ -30,9 +30,12 @@ import {
 const checkoutSchema = z.object({
   name: z.string().min(3, 'El nombre es muy corto'),
   phone: z.string().min(8, 'El teléfono no es válido'),
-  address: z.string().min(5, 'La dirección es muy corta'),
+  address: z.string().optional(),
   referralCode: z.string().optional(),
   notes: z.string().optional(),
+  finalCustomerName: z.string().optional(),
+  finalCustomerPhone: z.string().optional(),
+  finalCustomerAddress: z.string().optional(),
 });
 
 type CheckoutForm = z.infer<typeof checkoutSchema>;
@@ -40,7 +43,8 @@ type CheckoutForm = z.infer<typeof checkoutSchema>;
 export default function Checkout() {
   const { items, totalCUP, totalMLC, clearCart } = useCart();
   const currentStoreId = items.length > 0 ? items[0].storeId : undefined;
-  const { settings, loading: settingsLoading } = useStoreSettings(currentStoreId);
+  const { settings, store, loading: settingsLoading } = useStoreSettings(currentStoreId);
+  const catalogPath = store?.slug ? `/store/${store.slug}` : '/';
   const { theme } = useTheme();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -203,10 +207,13 @@ export default function Checkout() {
   };
 
   const handleSendWhatsAppInvoice = (order: any) => {
+    const isDrop = order.affiliateMode === 'direct_sale' && order.managerName;
+    
+    // Create clean, padded text rows for products
     const itemsText = order.items.map((item: any) => {
       const pkg = item.packagingName ? ` [EMPAQUE: ${cleanPackagingName(item.packagingName).toUpperCase()}]` : '';
-      return `🔹 ${item.quantity}x ${item.name}${pkg} -> $${(item.price * (item.packagingQuantity || 1) * item.quantity).toLocaleString()} ${item.currency}`;
-    }).join('\n');
+      return `🔹 *${item.quantity}x ${item.name}*${pkg}\n   └─ Subtotal: $${(item.price * (item.packagingQuantity || 1) * item.quantity).toLocaleString()} ${item.currency}`;
+    }).join('\n\n');
 
     const deliveryCostText = order.deliveryMethod === 'delivery'
       ? (typeof order.deliveryCost === 'number' 
@@ -214,31 +221,106 @@ export default function Checkout() {
           : 'A Consultar')
       : 'Gratis (Recogida)';
 
-    const totalCUPText = order.totalCUP > 0 ? `💵 *TOTAL CUP:* $${order.totalCUP.toLocaleString()} CUP` : '';
-    const totalMLCText = order.totalMLC > 0 ? `💳 *TOTAL MLC:* $${order.totalMLC.toLocaleString()} MLC` : '';
+    const totalCUPText = order.totalCUP > 0 ? `💵 *TOTAL CUP:*  $${order.totalCUP.toLocaleString()} CUP` : '';
+    const totalMLCText = order.totalMLC > 0 ? `💳 *TOTAL MLC:*  $${order.totalMLC.toLocaleString()} MLC` : '';
 
-    const text = `🧾 *FACTURA DE COMPRA*
----------------------------
-🛒 *Tienda:* ${s.name}
-📄 *Orden:* #${order.id.substring(0, 8).toUpperCase()}
-👤 *Cliente:* ${order.customerName}
-📞 *Teléfono:* ${order.customerPhone}
-📍 *Dirección:* ${order.customerAddress}
-🚚 *Entrega:* ${order.deliveryMethod === 'delivery' ? 'Domicilio' : 'Recogida en tienda'} (${deliveryCostText})
----------------------------
-📦 *PRODUCTOS:*
-${itemsText}
----------------------------
-💰 *LIQUIDACIÓN:*
-${totalCUPText}
-${totalMLCText}
----------------------------
-🙏 ¡Gracias por su compra!`;
+    const lines = [
+      `🧾 *FACTURA DE COMPRA*`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `🛒 *Tienda:*    ${s.name}`,
+      `📄 *Órden:*     #${order.id.substring(0, 8).toUpperCase()}`,
+      `────────────────────────`,
+      isDrop ? `👤 *Cliente Final:* ${order.customerName}` : `👤 *Cliente:*    ${order.customerName}`,
+      `📞 *Teléfono:*   ${order.customerPhone}`,
+      `📍 *Dirección:*  ${order.customerAddress}`,
+      `🚚 *Entrega:*    ${order.deliveryMethod === 'delivery' ? 'Domicilio' : 'Recogida en tienda'} (${deliveryCostText})`,
+    ];
 
+    if (isDrop) {
+      lines.push(
+        `────────────────────────`,
+        `💼 *Gestor / Socio:* ${order.managerName} (${order.referralCode || 'Sin código'})`,
+        `📞 *Teléfono Gestor:* ${order.managerPhone}`
+      );
+    }
+
+    lines.push(
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `📦 *DETALLE DE PRODUCTOS:*`,
+      `────────────────────────`,
+      itemsText,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💰 *LIQUIDACIÓN:*`,
+      `────────────────────────`
+    );
+
+    if (totalCUPText) lines.push(totalCUPText);
+    if (totalMLCText) lines.push(totalMLCText);
+
+    lines.push(
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `🙏 ¡Muchas gracias por su compra!`
+    );
+
+    const text = lines.filter(Boolean).join('\n');
     const encodedText = encodeURIComponent(text);
-    const cleanPhone = order.customerPhone.replace(/[^0-9]/g, '');
+    
+    // For Checkout (client perspective), send order details to the Store Owner's WhatsApp
+    const targetPhone = s.whatsappNumber ? s.whatsappNumber : order.customerPhone;
+    const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
     const prefixedPhone = cleanPhone.length === 8 ? `53${cleanPhone}` : cleanPhone;
     
+    window.open(`https://wa.me/${prefixedPhone}?text=${encodedText}`, '_blank');
+  };
+
+  const handleSendWhatsAppCommissionInvoice = (order: any) => {
+    const rate = s.commissionRate || 5;
+    const cupCommission = (order.totalCUP || 0) * rate / 100;
+    const mlcCommission = (order.totalMLC || 0) * rate / 100;
+
+    const totalCUPText = order.totalCUP > 0 ? `💵 *COMISIÓN CUP:*  $${cupCommission.toLocaleString()} CUP` : '';
+    const totalMLCText = order.totalMLC > 0 ? `💳 *COMISIÓN MLC:*  $${mlcCommission.toLocaleString()} MLC` : '';
+
+    const managerNameText = order.managerName || order.customerName;
+
+    const lines = [
+      `🧾 *FACTURA DE COMISIÓN (SOCIO)*`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💼 *Socio / Gestor:*  ${managerNameText}`,
+      `🔑 *Código Socio:*     ${order.referralCode || 'Sin código'}`,
+      `🛒 *Tienda:*           ${s.name}`,
+      `────────────────────────`,
+      `📄 *Órden:*           #${order.id.substring(0, 8).toUpperCase()}`,
+      `👤 *Cliente Final:*   ${order.customerName}`,
+      `🚚 *Tipo Entrega:*    ${order.deliveryMethod === 'delivery' ? 'Domicilio' : 'Recogida'}`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💰 *RESUMEN DE VENTA:*`,
+      `────────────────────────`,
+      order.totalCUP > 0 ? `🔹 Total Venta CUP: $${order.totalCUP.toLocaleString()} CUP` : '',
+      order.totalMLC > 0 ? `🔹 Total Venta MLC: $${order.totalMLC.toLocaleString()} MLC` : '',
+      `🔹 Porcentaje:      ${rate}%`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💵 *LIQUIDAR COMISIÓN:*`,
+      `────────────────────────`,
+    ];
+
+    if (totalCUPText) lines.push(totalCUPText);
+    if (totalMLCText) lines.push(totalMLCText);
+
+    lines.push(
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `🙏 ¡Gracias por tu tremenda gestión, asere!`,
+      `🚀 PaTí - Tu negocio en tus manos`
+    );
+
+    const text = lines.filter(Boolean).join('\n');
+    const encodedText = encodeURIComponent(text);
+
+    // Target Phone is the manager's phone, or the customer's phone if there is no specific managerPhone
+    const targetPhone = order.managerPhone || order.customerPhone || s.whatsappNumber || '';
+    const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+    const prefixedPhone = cleanPhone.length === 8 ? `53${cleanPhone}` : cleanPhone;
+
     window.open(`https://wa.me/${prefixedPhone}?text=${encodedText}`, '_blank');
   };
 
@@ -247,6 +329,41 @@ ${totalMLCText}
       toast.error("El carrito está vacío");
       return;
     }
+
+    const isDrop = s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale';
+
+    if (isDrop) {
+      if (!data.referralCode || data.referralCode.trim() === '') {
+        toast.error("Por favor, ingrese su Código de Socio / Gestor.");
+        return;
+      }
+      if (!data.finalCustomerName || data.finalCustomerName.trim().length < 3) {
+        toast.error("Por favor, ingrese el Nombre Completo del Cliente Final.");
+        return;
+      }
+      if (!data.finalCustomerPhone || data.finalCustomerPhone.trim().length < 8) {
+        toast.error("Por favor, ingrese el Teléfono del Cliente Final.");
+        return;
+      }
+      if (deliveryMethod === 'delivery' && (!data.finalCustomerAddress || data.finalCustomerAddress.trim().length < 5)) {
+        toast.error("Por favor, ingrese la Dirección de Entrega del Cliente Final.");
+        return;
+      }
+      if (deliveryMethod === 'pickup' && (!data.finalCustomerAddress || data.finalCustomerAddress.trim() === '')) {
+        data.finalCustomerAddress = "Recogida en tienda";
+      }
+      // Populate standard address field with final Customer address to satisfy downstream systems
+      data.address = data.finalCustomerAddress;
+    } else {
+      if (deliveryMethod === 'delivery' && (!data.address || data.address.trim().length < 5)) {
+        toast.error("Por favor, ingrese la Dirección de Entrega completa.");
+        return;
+      }
+      if (deliveryMethod === 'pickup') {
+        data.address = "Recogida en tienda";
+      }
+    }
+
     setFormData(data);
     setIsConfirmModalOpen(true);
   };
@@ -257,13 +374,66 @@ ${totalMLCText}
     setIsSubmitting(true);
     let completedOrderObj: any = null;
     try {
+      // Retrieve platform-wide fidelity category thresholds (anti-inflation config)
+      let vipThresholdCUP = 15000;
+      let vipThresholdMLC = 150;
+      let vipThresholdOrders = 10;
+      let oroThresholdCUP = 6000;
+      let oroThresholdMLC = 60;
+      let oroThresholdOrders = 5;
+      let plataThresholdCUP = 2000;
+      let plataThresholdMLC = 20;
+      let plataThresholdOrders = 2;
+
+      try {
+        const platDoc = await getDoc(doc(db, 'platform_settings', 'global'));
+        if (platDoc.exists()) {
+          const pData = platDoc.data();
+          vipThresholdCUP = pData.vipMinCUP ?? 15000;
+          vipThresholdMLC = pData.vipMinMLC ?? 150;
+          vipThresholdOrders = pData.vipMinOrders ?? 10;
+          oroThresholdCUP = pData.oroMinCUP ?? 6000;
+          oroThresholdMLC = pData.oroMinMLC ?? 60;
+          oroThresholdOrders = pData.oroMinOrders ?? 5;
+          plataThresholdCUP = pData.plataMinCUP ?? 2000;
+          plataThresholdMLC = pData.plataMinMLC ?? 20;
+          plataThresholdOrders = pData.plataMinOrders ?? 2;
+        }
+      } catch (e) {
+        console.error("No se pudieron cargar los parámetros globales de fidelidad, asere. Usando por defecto.", e);
+      }
+
+      // Support Dropshipping: distinguish between buyer (gestor) and final customer (recipient)
+      const isDropshipping = s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale';
+
+      const customerPhone = (isDropshipping && formData.finalCustomerPhone) 
+        ? formData.finalCustomerPhone 
+        : formData.phone;
+        
+      const customerName = (isDropshipping && formData.finalCustomerName)
+        ? formData.finalCustomerName
+        : formData.name;
+        
+      const customerAddress = (isDropshipping && formData.finalCustomerAddress)
+        ? formData.finalCustomerAddress
+        : formData.address;
+
+      // Look up client by phone number first
+      const clientQuery = query(
+        collection(db, 'clients'),
+        where('storeId', '==', currentStoreId),
+        where('phone', '==', customerPhone),
+        limit(1)
+      );
+      const clientSnapshot = await getDocs(clientQuery);
+
       await runTransaction(db, async (transaction) => {
         const orderRef = doc(collection(db, 'orders'));
         const orderData = {
           storeId: currentStoreId,
-          customerName: formData.name,
-          customerPhone: formData.phone,
-          customerAddress: formData.address,
+          customerName,
+          customerPhone,
+          customerAddress,
           notes: formData.notes || '',
           items: items.map(item => ({
             productId: item.productId,
@@ -291,7 +461,9 @@ ${totalMLCText}
           createdAt: serverTimestamp(),
           paymentMethod: 'coordinar',
           referralCode: formData.referralCode || null,
-          affiliateMode: s.affiliateMode || 'recommendation'
+          affiliateMode: s.affiliateMode || 'recommendation',
+          managerName: isDropshipping ? formData.name : undefined,
+          managerPhone: isDropshipping ? formData.phone : undefined,
         };
 
         completedOrderObj = {
@@ -300,7 +472,59 @@ ${totalMLCText}
           createdAt: { seconds: Math.floor(Date.now() / 1000) }
         };
 
-        // 1. Save the order
+        // 1. Calculate and save/update client info
+        let clientRef;
+        let nextOrders = 1;
+        let nextSpentCUP = finalTotalCUP;
+        let nextSpentMLC = finalTotalMLC;
+        let isNewClient = true;
+
+        if (!clientSnapshot.empty) {
+          const clientDoc = clientSnapshot.docs[0];
+          clientRef = doc(db, 'clients', clientDoc.id);
+          const clientData = clientDoc.data();
+          nextOrders = (clientData.totalOrders || 0) + 1;
+          nextSpentCUP = (clientData.totalSpentCUP || 0) + finalTotalCUP;
+          nextSpentMLC = (clientData.totalSpentMLC || 0) + finalTotalMLC;
+          isNewClient = false;
+        } else {
+          clientRef = doc(collection(db, 'clients'));
+        }
+
+        const calculateTier = (cup: number, mlc: number, count: number) => {
+          if (cup > vipThresholdCUP || mlc > vipThresholdMLC || count >= vipThresholdOrders) return 'VIP';
+          if (cup > oroThresholdCUP || mlc > oroThresholdMLC || count >= oroThresholdOrders) return 'Oro';
+          if (cup > plataThresholdCUP || mlc > plataThresholdMLC || count >= plataThresholdOrders) return 'Plata';
+          return 'Bronce';
+        };
+
+        const clientTier = calculateTier(nextSpentCUP, nextSpentMLC, nextOrders);
+
+        const clientPayload: any = {
+          storeId: currentStoreId,
+          name: customerName,
+          contactName: customerName,
+          phone: customerPhone,
+          address: customerAddress,
+          active: true,
+          totalOrders: nextOrders,
+          totalSpentCUP: nextSpentCUP,
+          totalSpentMLC: nextSpentMLC,
+          tier: clientTier,
+          lastPurchaseAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+
+        if (isNewClient) {
+          clientPayload.createdAt = serverTimestamp();
+          clientPayload.notes = 'Creado automáticamente al realizar compra';
+          clientPayload.categories = [];
+          transaction.set(clientRef, clientPayload);
+        } else {
+          transaction.update(clientRef, clientPayload);
+        }
+
+        // 2. Save the order
         transaction.set(orderRef, orderData);
         
         // 2. Update stock for each item
@@ -342,9 +566,13 @@ ${totalMLCText}
       toast.success("¡Pedido realizado e inventario actualizado!");
     } catch (error) {
       console.error("Checkout Error:", error);
-      handleFirestoreError(error, OperationType.CREATE, 'orders');
-      toast.error("Hubo un error al procesar tu pedido. Por favor intenta de nuevo.");
       setIsSubmitting(false);
+      try {
+        handleFirestoreError(error, OperationType.CREATE, 'orders');
+      } catch (err) {
+        console.error("Firestore error logged:", err);
+      }
+      toast.error("Hubo un error al procesar tu pedido. Por favor intenta de nuevo.");
     }
   };
 
@@ -422,14 +650,26 @@ ${totalMLCText}
                   Enviar WhatsApp
                 </Button>
               </div>
+
+              {placedOrder.referralCode && (
+                <div className="mt-3">
+                  <Button 
+                    onClick={() => handleSendWhatsAppCommissionInvoice(placedOrder)}
+                    className="w-full rounded-xl h-11 bg-amber-500 hover:bg-amber-600 text-white font-black uppercase text-[10px] tracking-wider flex items-center justify-center gap-1.5 shadow transition-all active:scale-95 duration-200"
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    Enviar Factura de Comisión a Socio
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
 
           <Button 
             size="lg" 
-            className="w-full font-black h-14 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-all"
+            className="w-full font-black h-14 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-all mt-6"
             nativeButton={false}
-            render={<Link to="/Catalog" />}
+            render={<Link to={catalogPath} />}
           >
             Volver al Catálogo
           </Button>
@@ -475,15 +715,19 @@ ${totalMLCText}
           <div className="space-y-6">
             <Card className="border-none bg-card shadow-sm rounded-[2rem]">
               <CardHeader className="pb-2">
-                <CardTitle className="text-xl font-black">Tus Datos</CardTitle>
+                <CardTitle className="text-xl font-black">
+                  {s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale' ? 'Tus Datos (Gestor / Socio)' : 'Tus Datos'}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <form id="checkout-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Nombre Completo</Label>
+                    <Label htmlFor="name" className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                      {s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale' ? 'Tu Nombre (Gestor)' : 'Nombre Completo'}
+                    </Label>
                     <Input 
                       id="name" 
-                      placeholder="Ej. Juan Pérez" 
+                      placeholder={s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale' ? "Tu nombre o apodo de socio" : "Ej. Juan Pérez"} 
                       {...register('name')}
                       className={cn(
                         "h-12 bg-muted/50 border-border rounded-xl px-4 font-medium",
@@ -493,7 +737,9 @@ ${totalMLCText}
                     {errors.name && <p className="text-[10px] text-destructive font-bold ml-1">{errors.name.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Teléfono / WhatsApp</Label>
+                    <Label htmlFor="phone" className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                      {s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale' ? 'Tu Teléfono (Gestor)' : 'Teléfono / WhatsApp'}
+                    </Label>
                     <Input 
                       id="phone" 
                       placeholder="Ej. +53 52345678" 
@@ -505,24 +751,26 @@ ${totalMLCText}
                     />
                     {errors.phone && <p className="text-[10px] text-destructive font-bold ml-1">{errors.phone.message}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address" className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Dirección de Entrega</Label>
-                    <Input 
-                      id="address" 
-                      placeholder="Calle, No, Entre calles, Municipio" 
-                      {...register('address')}
-                      className={cn(
-                        "h-12 bg-muted/50 border-border rounded-xl px-4 font-medium",
-                        errors.address && 'border-destructive ring-destructive/20'
-                      )}
-                    />
-                    {errors.address && <p className="text-[10px] text-destructive font-bold ml-1">{errors.address.message}</p>}
-                    <p className="text-[10px] text-muted-foreground font-semibold italic ml-1">
-                      {deliveryMethod === 'pickup' 
-                        ? "* Para recogida en tienda, auto-completamos como 'Recogida en tienda'." 
-                        : "* Especifica tu dirección completa para la entrega a domicilio."}
-                    </p>
-                  </div>
+                  {!(s.affiliateSystemEnabled && s.affiliateMode === 'direct_sale') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="address" className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Dirección de Entrega</Label>
+                      <Input 
+                        id="address" 
+                        placeholder="Calle, No, Entre calles, Municipio" 
+                        {...register('address')}
+                        className={cn(
+                          "h-12 bg-muted/50 border-border rounded-xl px-4 font-medium",
+                          errors.address && 'border-destructive ring-destructive/20'
+                        )}
+                      />
+                      {errors.address && <p className="text-[10px] text-destructive font-bold ml-1">{errors.address.message}</p>}
+                      <p className="text-[10px] text-muted-foreground font-semibold italic ml-1">
+                        {deliveryMethod === 'pickup' 
+                          ? "* Para recogida en tienda, auto-completamos como 'Recogida en tienda'." 
+                          : "* Especifica tu dirección completa para la entrega a domicilio."}
+                      </p>
+                    </div>
+                  )}
 
                   {s.homeDeliveryEnabled && (
                     <div className="space-y-3 p-5 bg-muted/30 border border-border rounded-2xl">
@@ -608,21 +856,70 @@ ${totalMLCText}
                   )}
 
                   {s.affiliateSystemEnabled && (
-                    <div className="space-y-2 p-4 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-                      <Label htmlFor="referralCode" className="text-[10px] font-black uppercase tracking-widest text-amber-600 ml-1">
-                        {s.affiliateMode === 'direct_sale' ? 'Código de Socio / Gestor' : 'Código de Invitación (Opcional)'}
-                      </Label>
-                      <Input 
-                        id="referralCode" 
-                        placeholder={s.affiliateMode === 'direct_sale' ? "TU CÓDIGO DE GESTOR" : "Socio123..."}
-                        {...register('referralCode')}
-                        className="h-10 bg-white border-amber-100 rounded-xl px-4 font-bold uppercase text-xs"
-                      />
-                      <p className="text-[9px] text-amber-500 font-bold uppercase italic px-1">
-                        {s.affiliateMode === 'direct_sale' 
-                          ? '* Obligatorio si compras para un cliente final' 
-                          : '* Introduce el código si alguien te recomendó'}
-                      </p>
+                    <div className="space-y-4 p-4 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                      <div>
+                        <Label htmlFor="referralCode" className="text-[10px] font-black uppercase tracking-widest text-amber-600 ml-1">
+                          {s.affiliateMode === 'direct_sale' ? 'Código de Socio / Gestor' : 'Código de Invitación (Opcional)'}
+                        </Label>
+                        <Input 
+                          id="referralCode" 
+                          placeholder={s.affiliateMode === 'direct_sale' ? "TU CÓDIGO DE GESTOR" : "Socio123..."}
+                          {...register('referralCode')}
+                          className="h-10 bg-white border-amber-100 rounded-xl px-4 font-bold uppercase text-xs mt-1"
+                        />
+                        <p className="text-[9px] text-amber-500 font-bold uppercase italic px-1 mt-1">
+                          {s.affiliateMode === 'direct_sale' 
+                            ? '* Obligatorio si compras para un cliente final' 
+                            : '* Introduce el código si alguien te recomendó'}
+                        </p>
+                      </div>
+
+                      {s.affiliateMode === 'direct_sale' && (
+                        <div className="space-y-3 pt-3 border-t border-amber-100/50 dark:border-amber-900/50 animate-in fade-in duration-300">
+                          <span className="text-xs font-black uppercase tracking-widest text-[#F59E0B] block">
+                            📦 Datos del Cliente Final (Entrega)
+                          </span>
+                          
+                          <div className="space-y-1">
+                            <Label htmlFor="finalCustomerName" className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                              Nombre Completo del Cliente Final
+                            </Label>
+                            <Input 
+                              id="finalCustomerName" 
+                              placeholder="Ej. María Rodríguez" 
+                              {...register('finalCustomerName')}
+                              className="h-10 bg-white border-slate-200 rounded-xl px-4 font-bold text-xs"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label htmlFor="finalCustomerPhone" className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                              Teléfono / WhatsApp de Entrega
+                            </Label>
+                            <Input 
+                              id="finalCustomerPhone" 
+                              placeholder="Ej. +53 58765432" 
+                              {...register('finalCustomerPhone')}
+                              className="h-10 bg-white border-slate-200 rounded-xl px-4 font-bold text-xs"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label htmlFor="finalCustomerAddress" className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                              Dirección de Entrega del Cliente Final
+                            </Label>
+                            <Input 
+                              id="finalCustomerAddress" 
+                              placeholder="Calle, No, Entre calles, Municipio (o especifique recogida)" 
+                              {...register('finalCustomerAddress')}
+                              className="h-10 bg-white border-slate-200 rounded-xl px-4 font-bold text-xs"
+                            />
+                            <p className="text-[9px] text-slate-400 font-semibold italic ml-1 leading-tight">
+                              * Donde la tienda debe entregar. Deja vacío si se recoge directamente.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { 
@@ -38,13 +38,82 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { useUserStore } from '../hooks/useStoreSettings';
 import { db, logout, handleFirestoreError, OperationType } from '../firebase';
-import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, addDoc, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ArrowLeft, Loader2, Store as StoreLucideIcon } from "lucide-react";
+
+const CUBAN_PROVINCES_MUNICIPALITIES: Record<string, string[]> = {
+  'La Habana': [
+    'Plaza de la Revolución', 'Playa', 'Centro Habana', 'Habana Vieja', 'Regla',
+    'Guanabacoa', 'San Miguel del Padrón', 'Diez de Octubre', 'Cerro', 'Marianao',
+    'La Lisa', 'Boyeros', 'Arroyo Naranjo', 'Cotorro', 'Habana del Este'
+  ],
+  'Pinar del Río': [
+    'Pinar del Río', 'Consolación del Sur', 'Viñales', 'Minas de Matahambre', 
+    'San Juan y Martínez', 'San Luis', 'Guane', 'Mantua', 'Sandino', 'Los Palacios', 'La Palma'
+  ],
+  'Artemisa': [
+    'Artemisa', 'Bauta', 'Caimito', 'Guanajay', 'Mariel', 'San Antonio de los Baños', 
+    'Bahía Honda', 'San Cristóbal', 'Candelaria', 'Alquízar', 'Güira de Melena'
+  ],
+  'Mayabeque': [
+    'San José de las Lajas', 'Bejucal', 'Jaruco', 'Santa Cruz del Norte', 'Madruga', 
+    'Nueva Paz', 'San Nicolás', 'Melena del Sur', 'Batabanó', 'Quivicán', 'Güines'
+  ],
+  'Matanzas': [
+    'Matanzas', 'Cárdenas', 'Varadero', 'Jovellanos', 'Limonar', 'Colón', 'Jagüey Grande', 
+    'Calimete', 'Martí', 'Pedro Betancourt', 'Unión de Reyes', 'Los Arabos', 'Ciénaga de Zapata'
+  ],
+  'Cienfuegos': [
+    'Cienfuegos', 'Abreus', 'Aguada de Pasajeros', 'Cruces', 'Lajas', 'Palmira', 'Rodas', 'Cumanayagua'
+  ],
+  'Villa Clara': [
+    'Santa Clara', 'Sagua la Grande', 'Caibarién', 'Remedios', 'Camajuaní', 'Placetas', 
+    'Ranchuelo', 'Santo Domingo', 'Manicaragua', 'Cifuentes', 'Encrucijada', 'Quemado de Güines', 'Corralillo'
+  ],
+  'Sancti Spíritus': [
+    'Sancti Spíritus', 'Trinidad', 'Cabaiguán', 'Fomento', 'Jatibonico', 'Taguasco', 'Yaguajay', 'La Sierpe'
+  ],
+  'Ciego de Ávila': [
+    'Ciego de Ávila', 'Morón', 'Chambas', 'Florencia', 'Venezuela', 'Baraguá', 'Primero de Enero', 
+    'Ciro Redondo', 'Majagua', 'Bolivia'
+  ],
+  'Camagüey': [
+    'Camagüey', 'Nuevitas', 'Florida', 'Vertientes', 'Guáimaro', 'Sibanicú', 'Jimaguayú', 
+    'Santa Cruz del Sur', 'Najasa', 'Esmeralda', 'Sierra de Cubitas', 'Minas', 'Céspedes'
+  ],
+  'Las Tunas': [
+    'Las Tunas', 'Puerto Padre', 'Amancio', 'Colombia', 'Jesús Menéndez', 'Majibacoa', 'Manatí', 'Jobabo'
+  ],
+  'Holguín': [
+    'Holguín', 'Banes', 'Gibara', 'Mayarí', 'Moa', 'Sagua de Tánamo', 'Rafael Freyre', 'Calixto García', 
+    'Cacocum', 'Baguanos', 'Urbano Noris', 'Cueto', 'Frank País', 'Antilla'
+  ],
+  'Granma': [
+    'Bayamo', 'Manzanillo', 'Jiguaní', 'Cauto Cristo', 'Río Cauto', 'Yara', 'Campechuela', 
+    'Media Luna', 'Niquero', 'Pilón', 'Bartolomé Masó', 'Buey Arriba', 'Guisa'
+  ],
+  'Santiago de Cuba': [
+    'Santiago de Cuba', 'Palma Soriano', 'Contramaestre', 'San Luis', 'Songo - La Maya', 
+    'Mella', 'Segundo Frente', 'Tercer Frente', 'Guamá'
+  ],
+  'Guantánamo': [
+    'Guantánamo', 'Baracoa', 'Maisí', 'Yateras', 'Imías', 'San Antonio del Sur', 
+    'Manuel Tames', 'Caimanera', 'El Salvador', 'Niceto Pérez'
+  ],
+  'Isla de la Juventud': [
+    'Nueva Gerona'
+  ]
+};
 
 export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading } = useAuth();
   const isPlatformOwner = user?.email === 'jopocmg9399@gmail.com';
   
@@ -80,12 +149,117 @@ export default function Dashboard() {
   const activeStore = (isPlatformOwner && targetStore) ? targetStore : userStore;
   const isLoading = loading || (user && (loadingStore || loadingTarget));
 
+  // Store Creation Flow State
+  const createStoreParam = searchParams.get('createStore') === 'true';
+  const [createStoreName, setCreateStoreName] = useState('');
+  const [createStoreSlug, setCreateStoreSlug] = useState('');
+  const [createStoreDesc, setCreateStoreDesc] = useState('');
+  const [createOwnerPhone, setCreateOwnerPhone] = useState('');
+  const [createProvince, setCreateProvince] = useState('La Habana');
+  const [createMunicipality, setCreateMunicipality] = useState('Plaza de la Revolución');
+  const [createLocality, setCreateLocality] = useState('');
+  const [isSubmittingStore, setIsSubmittingStore] = useState(false);
+
+  // Sync municipality options when province changes
+  useEffect(() => {
+    const availableMunis = CUBAN_PROVINCES_MUNICIPALITIES[createProvince] || [];
+    if (availableMunis.length > 0) {
+      if (!availableMunis.includes(createMunicipality)) {
+        setCreateMunicipality(availableMunis[0]);
+      }
+    } else {
+      setCreateMunicipality('');
+    }
+  }, [createProvince]);
+
+  // Auto-generate slug from name
+  useEffect(() => {
+    if (createStoreName) {
+      const gSlug = createStoreName
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .replace(/[^a-z0-9\s-]/g, '')    // Remove special chars
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+      setCreateStoreSlug(gSlug);
+    }
+  }, [createStoreName]);
+
+  const handleCreateStoreSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createStoreName.trim() || !createStoreSlug.trim() || !createOwnerPhone.trim() || !createMunicipality.trim()) {
+      toast.error('¡Oye asere! Rellena todos los campos requeridos para poder montar tu negocio.');
+      return;
+    }
+
+    setIsSubmittingStore(true);
+    try {
+      // Check if slug is unique
+      const slugQuery = query(collection(db, 'stores'), where('slug', '==', createStoreSlug.toLowerCase().trim()));
+      const slugSnap = await getDocs(slugQuery);
+      if (!slugSnap.empty) {
+        toast.error('Oye, ese nombre de enlace/slug ya existe en PaTí. ¡Búscate otro con más de chispa!');
+        setIsSubmittingStore(false);
+        return;
+      }
+
+      const storeData = {
+        name: createStoreName.trim(),
+        slug: createStoreSlug.toLowerCase().trim(),
+        description: createStoreDesc.trim(),
+        ownerId: user?.uid || '',
+        ownerName: user?.displayName || 'Propietario',
+        ownerPhone: createOwnerPhone.trim(),
+        location: {
+          province: createProvince.trim(),
+          municipality: createMunicipality.trim(),
+          locality: createLocality.trim(),
+        },
+        commissionRate: 5,
+        active: true,
+        featured: false,
+        createdAt: Date.now(),
+        settings: {
+          name: createStoreName.trim(),
+          description: createStoreDesc.trim(),
+          phone: createOwnerPhone.trim(),
+          whatsappNumber: createOwnerPhone.replace(/\D/g, ''),
+          address: `${createLocality ? `${createLocality}, ` : ''}${createMunicipality}, ${createProvince}, Cuba`,
+          email: user?.email || '',
+          cupPaymentInstructions: 'Pagar via Transfermóvil',
+          mlcPaymentInstructions: 'Pagar via Transferencia MLC',
+          mainCurrency: 'CUP',
+          enabledCurrencies: ['CUP', 'MLC'],
+          exchangeRates: { 'MLC': 1, 'USD': 350 },
+          activePaymentMethods: ['transfer', 'cash'],
+          affiliateSystemEnabled: false,
+          affiliateMode: 'recommendation',
+          zelleInstructions: '',
+        }
+      };
+
+      await addDoc(collection(db, 'stores'), storeData);
+      toast.success('¡Qué clase de negocio, asere! Tu tienda "PaTí" ha sido creada con éxito.');
+      
+      // Navigate to /Dashboard so the newly created store is immediately selected/loaded
+      navigate('/Dashboard', { replace: true });
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo registrar la tienda, asere.');
+    } finally {
+      setIsSubmittingStore(false);
+    }
+  };
+
   const [platformLogo, setPlatformLogo] = useState<string>('');
   const [platformName, setPlatformName] = useState<string>('');
   const [currentPlatformVer, setCurrentPlatformVer] = useState<string>('');
   const [allReleases, setAllReleases] = useState<any[]>([]);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [activeRelease, setActiveRelease] = useState<any | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const unsubPlat = onSnapshot(doc(db, 'platform_settings', 'global'), (snap) => {
@@ -139,20 +313,195 @@ export default function Dashboard() {
     return <Navigate to="/" replace />;
   }
 
-  // Si no es el dueño de la plataforma y no tiene una tienda asignada, no puede entrar al dashboard
-  if (!isPlatformOwner && !activeStore) {
+  // Determinar si entra en flujo de creación de tienda (porque hizo click en el botón "Quiero mi tienda PaTí" o porque no tiene tienda registrada siendo usuario normal)
+  const isCreatingNewStore = createStoreParam || (!isPlatformOwner && !activeStore);
+
+  if (isCreatingNewStore) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 text-center">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800 max-w-md w-full">
-          <div className="bg-amber-100 dark:bg-amber-900/30 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-6">
-            <HelpCircle className="h-8 w-8 text-amber-600" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Solicitar Acceso</h2>
-          <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium italic">Usted no tiene una tienda registrada en PaTí: Plaza Digital. Contacte al propietario para generar su prototipo de tienda.</p>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 py-12 md:p-8 relative">
+        <div className="absolute top-6 left-6 flex items-center gap-4">
           <Link to="/">
-            <Button className="w-full font-black uppercase text-[10px] tracking-widest h-12 rounded-2xl">Volver al Inicio</Button>
+            <Button variant="outline" className="h-10 rounded-xl px-4 text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-900 border-slate-200">
+              <ArrowLeft className="h-4 w-4 mr-2" /> Volver al Inicio
+            </Button>
           </Link>
+          <ThemeToggle />
         </div>
+
+        <Card className="w-full max-w-2xl border-2 border-slate-100 dark:border-slate-800 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white dark:bg-slate-900">
+          <CardHeader className="bg-slate-50/60 dark:bg-slate-800/50 border-b-2 border-slate-100 dark:border-slate-800 p-8 md:p-10 text-center">
+            <div className="h-16 w-16 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 text-primary animate-pulse">
+              <StoreLucideIcon className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-3xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white">
+              Crea tu Tienda PaTí 🇨🇺
+            </CardTitle>
+            <CardDescription className="text-slate-500 dark:text-slate-400 font-medium mt-2 text-sm max-w-md mx-auto">
+              Diseña y lanza tu propia plaza digital de productos en minutos. Llena los datos básicos para configurar tu tienda personalizada.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-8 md:p-10">
+            <form onSubmit={handleCreateStoreSubmit} className="space-y-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Store Name */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    Nombre de tu Negocio *
+                  </Label>
+                  <Input
+                    required
+                    placeholder="e.g. Mi Combo Cubano, El Bodegón Criollo"
+                    className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 rounded-2xl font-black text-slate-900 dark:text-white"
+                    value={createStoreName}
+                    onChange={(e) => setCreateStoreName(e.target.value)}
+                  />
+                </div>
+
+                {/* Enlace de tu tienda */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    Enlace de tu Tienda (Slug Url) *
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-450 dark:text-slate-400 font-mono">
+                      /store/
+                    </span>
+                    <Input
+                      required
+                      placeholder="mi-combo-cubano"
+                      className="h-12 pl-16 bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 rounded-2xl font-black text-slate-900 dark:text-white font-mono lowercase"
+                      value={createStoreSlug}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-0-]/g, '');
+                        setCreateStoreSlug(cleaned);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* WhatsApp */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    Teléfono / WhatsApp * (sin el +)
+                  </Label>
+                  <Input
+                    required
+                    maxLength={15}
+                    placeholder="e.g. 5351234567"
+                    className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 rounded-2xl font-black text-slate-900 dark:text-white font-mono"
+                    value={createOwnerPhone}
+                    onChange={(e) => setCreateOwnerPhone(e.target.value.replace(/\D/g, ''))}
+                  />
+                </div>
+
+                {/* Province */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    Provincia *
+                  </Label>
+                  <select
+                    className="flex w-full h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white text-sm px-4 focus:outline-none focus:ring-0"
+                    value={createProvince}
+                    onChange={(e) => setCreateProvince(e.target.value)}
+                  >
+                    {[
+                      'La Habana', 'Pinar del Río', 'Artemisa', 'Mayabeque', 'Matanzas', 
+                      'Cienfuegos', 'Villa Clara', 'Sancti Spíritus', 'Ciego de Ávila', 
+                      'Camagüey', 'Las Tunas', 'Holguín', 'Granma', 'Santiago de Cuba', 
+                      'Guantánamo', 'Isla de la Juventud'
+                    ].map(prov => (
+                      <option key={prov} value={prov}>{prov}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Municipio */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    Municipio *
+                  </Label>
+                  <select
+                    className="flex w-full h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white text-sm px-4 focus:outline-none focus:ring-0"
+                    value={createMunicipality}
+                    onChange={(e) => setCreateMunicipality(e.target.value)}
+                  >
+                    {(CUBAN_PROVINCES_MUNICIPALITIES[createProvince] || ['Plaza de la Revolución']).map(muni => (
+                      <option key={muni} value={muni}>{muni}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Localidad / Reparto */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    Localidad / Reparto (Opcional)
+                  </Label>
+                  <Input
+                    autoComplete="new-locality-field"
+                    name="custom_create_locality"
+                    placeholder="e.g. Vedado, Reparto San Matías"
+                    className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 rounded-2xl font-black text-slate-900 dark:text-white"
+                    value={createLocality}
+                    onChange={(e) => setCreateLocality(e.target.value)}
+                  />
+                </div>
+
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  Descripción o Slogan del Negocio *
+                </Label>
+                <Textarea
+                  required
+                  rows={3}
+                  placeholder="Explícales a tus clientes qué vendes (e.g., combos cárnicos de excelencia, verduras frescas, aseo nacional e importado)."
+                  className="bg-slate-50 dark:bg-slate-950 border-2 border-slate-150 rounded-2xl font-medium text-slate-800 dark:text-slate-200 text-xs p-4"
+                  value={createStoreDesc}
+                  onChange={(e) => setCreateStoreDesc(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                {activeStore || isPlatformOwner ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 h-12 rounded-xl text-xs font-black uppercase tracking-widest border border-slate-200"
+                    onClick={() => {
+                      const nextParams = new URLSearchParams();
+                      searchParams.forEach((val, key) => {
+                        if (key !== 'createStore') {
+                          nextParams.set(key, val);
+                        }
+                      });
+                      setSearchParams(nextParams, { replace: true });
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                ) : null}
+                <Button
+                  type="submit"
+                  disabled={isSubmittingStore}
+                  className="flex-1 h-12 rounded-xl text-xs font-black uppercase tracking-widest bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20"
+                >
+                  {isSubmittingStore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando Tu Tienda...
+                    </>
+                  ) : (
+                    '¡Lanzar Mi Tienda PaTí! 🚀'
+                  )}
+                </Button>
+              </div>
+
+            </form>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -181,7 +530,7 @@ export default function Dashboard() {
   } : activeStore?.settings;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 w-full overflow-x-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-64 fixed inset-y-0 z-50">
         <Sidebar 
@@ -197,7 +546,7 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:pl-64">
+      <div className="flex-1 flex flex-col md:pl-64 min-w-0 w-full overflow-x-hidden">
         {/* Desktop Top Bar */}
         <header className="hidden md:flex h-20 items-center justify-between px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 sticky top-0 z-30 transition-colors">
           <div className="flex items-center gap-2">
@@ -238,7 +587,7 @@ export default function Dashboard() {
         
         {/* Mobile Header - Improved to respect platform vs store view */}
         <header className="flex md:hidden h-16 items-center justify-between px-6 bg-white dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-30">
-          <Sheet>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger render={
               <Button variant="ghost" size="icon" className="rounded-xl" nativeButton={true} />
             }>
@@ -254,6 +603,7 @@ export default function Dashboard() {
                 isAdmin={showPlatformOwnerView}
                 platformLogo={platformLogo}
                 platformName={platformName}
+                onItemClick={() => setMobileMenuOpen(false)}
               />
             </SheetContent>
           </Sheet>
@@ -397,7 +747,7 @@ export default function Dashboard() {
   );
 }
 
-function Sidebar({ settings, navItems, location, user, onLogout, isAdmin, platformLogo, platformName }: any) {
+function Sidebar({ settings, navItems, location, user, onLogout, isAdmin, platformLogo, platformName, onItemClick }: any) {
   const [searchParams] = useSearchParams();
   const manageStoreId = searchParams.get('manageStoreId');
   const storeIdActive = searchParams.get('storeId') === 'active';
@@ -412,7 +762,7 @@ function Sidebar({ settings, navItems, location, user, onLogout, isAdmin, platfo
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r dark:border-slate-800">
-      <Link to={`/Dashboard${searchSuffix}`} className="p-8 flex flex-col items-center text-center gap-4 border-b dark:border-slate-800 group">
+      <Link to={`/Dashboard${searchSuffix}`} onClick={onItemClick} className="p-8 flex flex-col items-center text-center gap-4 border-b dark:border-slate-800 group">
         <div className={cn(
           "h-20 w-20 rounded-[2.5rem] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105 rotate-3 overflow-hidden bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 p-2",
           (!logoToShow) && (isAdmin ? "bg-slate-900 text-white" : "bg-primary text-white")
@@ -443,6 +793,7 @@ function Sidebar({ settings, navItems, location, user, onLogout, isAdmin, platfo
               )}
               render={<Link to={`${item.path}${searchSuffix}`} />}
               nativeButton={false}
+              onClick={onItemClick}
             >
               <item.icon className="h-4 w-4" />
               {item.label}
@@ -454,7 +805,10 @@ function Sidebar({ settings, navItems, location, user, onLogout, isAdmin, platfo
         <Button 
           variant="outline" 
           className="w-full h-12 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 dark:border-slate-800"
-          onClick={onLogout}
+          onClick={() => {
+            onItemClick?.();
+            onLogout();
+          }}
         >
           <LogOut className="mr-2 h-4 w-4 text-rose-500" /> Cerrar Sesión
         </Button>

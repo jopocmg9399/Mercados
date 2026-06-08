@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Save, Loader2, Trash2, AlertTriangle, RotateCcw, DollarSign, Wallet, CreditCard, Ban, UserPlus, CheckCircle2, MapPin, Truck, Plus, Tag, GitBranch, History, Sparkles } from "lucide-react";
+import { Save, Loader2, Trash2, AlertTriangle, RotateCcw, DollarSign, Wallet, CreditCard, Ban, UserPlus, CheckCircle2, MapPin, Truck, Plus, Tag, GitBranch, History, Sparkles, Award } from "lucide-react";
 import { db, handleFirestoreError, OperationType } from '../../firebase';
 import { doc, onSnapshot, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { StoreSettings, Currency } from '../../types';
@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from 'sonner';
 import { getProxyImageUrl, cn } from '../../lib/utils';
 import StoreBackupRestore from './StoreBackupRestore';
+import { ImageFileUploader } from '../ImageFileUploader';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +34,70 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+const CUBAN_PROVINCES_MUNICIPALITIES: Record<string, string[]> = {
+  'La Habana': [
+    'Plaza de la Revolución', 'Playa', 'Centro Habana', 'Habana Vieja', 'Regla',
+    'Guanabacoa', 'San Miguel del Padrón', 'Diez de Octubre', 'Cerro', 'Marianao',
+    'La Lisa', 'Boyeros', 'Arroyo Naranjo', 'Cotorro', 'Habana del Este'
+  ],
+  'Pinar del Río': [
+    'Pinar del Río', 'Consolación del Sur', 'Viñales', 'Minas de Matahambre', 
+    'San Juan y Martínez', 'San Luis', 'Guane', 'Mantua', 'Sandino', 'Los Palacios', 'La Palma'
+  ],
+  'Artemisa': [
+    'Artemisa', 'Bauta', 'Caimito', 'Guanajay', 'Mariel', 'San Antonio de los Baños', 
+    'Bahía Honda', 'San Cristóbal', 'Candelaria', 'Alquízar', 'Güira de Melena'
+  ],
+  'Mayabeque': [
+    'San José de las Lajas', 'Bejucal', 'Jaruco', 'Santa Cruz del Norte', 'Madruga', 
+    'Nueva Paz', 'San Nicolás', 'Melena del Sur', 'Batabanó', 'Quivicán', 'Güines'
+  ],
+  'Matanzas': [
+    'Matanzas', 'Cárdenas', 'Varadero', 'Jovellanos', 'Limonar', 'Colón', 'Jagüey Grande', 
+    'Calimete', 'Martí', 'Pedro Betancourt', 'Unión de Reyes', 'Los Arabos', 'Ciénaga de Zapata'
+  ],
+  'Cienfuegos': [
+    'Cienfuegos', 'Abreus', 'Aguada de Pasajeros', 'Cruces', 'Lajas', 'Palmira', 'Rodas', 'Cumanayagua'
+  ],
+  'Villa Clara': [
+    'Santa Clara', 'Sagua la Grande', 'Caibarién', 'Remedios', 'Camajuaní', 'Placetas', 
+    'Ranchuelo', 'Santo Domingo', 'Manicaragua', 'Cifuentes', 'Encrucijada', 'Quemado de Güines', 'Corralillo'
+  ],
+  'Sancti Spíritus': [
+    'Sancti Spíritus', 'Trinidad', 'Cabaiguán', 'Fomento', 'Jatibonico', 'Taguasco', 'Yaguajay', 'La Sierpe'
+  ],
+  'Ciego de Ávila': [
+    'Ciego de Ávila', 'Morón', 'Chambas', 'Florencia', 'Venezuela', 'Baraguá', 'Primero de Enero', 
+    'Ciro Redondo', 'Majagua', 'Bolivia'
+  ],
+  'Camagüey': [
+    'Camagüey', 'Nuevitas', 'Florida', 'Vertientes', 'Guáimaro', 'Sibanicú', 'Jimaguayú', 
+    'Santa Cruz del Sur', 'Najasa', 'Esmeralda', 'Sierra de Cubitas', 'Minas', 'Céspedes'
+  ],
+  'Las Tunas': [
+    'Las Tunas', 'Puerto Padre', 'Amancio', 'Colombia', 'Jesús Menéndez', 'Majibacoa', 'Manatí', 'Jobabo'
+  ],
+  'Holguín': [
+    'Holguín', 'Banes', 'Gibara', 'Mayarí', 'Moa', 'Sagua de Tánamo', 'Rafael Freyre', 'Calixto García', 
+    'Cacocum', 'Baguanos', 'Urbano Noris', 'Cueto', 'Frank País', 'Antilla'
+  ],
+  'Granma': [
+    'Bayamo', 'Manzanillo', 'Jiguaní', 'Cauto Cristo', 'Río Cauto', 'Yara', 'Campechuela', 
+    'Media Luna', 'Niquero', 'Pilón', 'Bartolomé Masó', 'Buey Arriba', 'Guisa'
+  ],
+  'Santiago de Cuba': [
+    'Santiago de Cuba', 'Palma Soriano', 'Contramaestre', 'San Luis', 'Songo - La Maya', 
+    'Mella', 'Segundo Frente', 'Tercer Frente', 'Guamá'
+  ],
+  'Guantánamo': [
+    'Guantánamo', 'Baracoa', 'Maisí', 'Yateras', 'Imías', 'San Antonio del Sur', 
+    'Manuel Tames', 'Caimanera', 'El Salvador', 'Niceto Pérez'
+  ],
+  'Isla de la Juventud': [
+    'Nueva Gerona'
+  ]
+};
 
 export default function SettingsManager({ storeId, platformMode }: { storeId?: string, platformMode?: boolean }) {
   const [settings, setSettings] = useState<any | null>(null);
@@ -50,6 +115,19 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
     municipality: '',
     locality: ''
   });
+
+  // Synchronize municipality options when province changes in settings form
+  useEffect(() => {
+    if (!address.province) return;
+    const available = CUBAN_PROVINCES_MUNICIPALITIES[address.province] || [];
+    if (available.length > 0) {
+      if (!available.includes(address.municipality)) {
+        setAddress(prev => ({ ...prev, municipality: available[0] }));
+      }
+    } else {
+      setAddress(prev => ({ ...prev, municipality: '' }));
+    }
+  }, [address.province]);
 
   useEffect(() => {
     if (!storeId && !platformMode) return;
@@ -70,13 +148,26 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
             announcement: data.announcement || '',
             currentVersion: data.currentVersion || '1.1.0',
             releases: data.releases || [],
-            active: data.active !== false
+            active: data.active !== false,
+            // Fidelity thresholds
+            vipMinCUP: data.vipMinCUP ?? 15000,
+            vipMinMLC: data.vipMinMLC ?? 150,
+            vipMinOrders: data.vipMinOrders ?? 10,
+            oroMinCUP: data.oroMinCUP ?? 6000,
+            oroMinMLC: data.oroMinMLC ?? 60,
+            oroMinOrders: data.oroMinOrders ?? 5,
+            plataMinCUP: data.plataMinCUP ?? 2000,
+            plataMinMLC: data.plataMinMLC ?? 20,
+            plataMinOrders: data.plataMinOrders ?? 2
           });
         } else {
           const sObj = data.settings || {};
           setSettings({
             name: data.name || 'Nueva Tienda',
             description: data.description || 'Descripción de la tienda',
+            logo: data.logo || sObj.logo || '',
+            banner: data.banner || sObj.banner || '',
+            storeImage: data.storeImage || sObj.storeImage || '',
             phone: sObj.phone || '',
             whatsappNumber: sObj.whatsappNumber || '',
             address: sObj.address || '',
@@ -117,7 +208,17 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
           announcement: '',
           currentVersion: '1.1.0',
           releases: [],
-          active: true
+          active: true,
+          // Fidelity Thresholds defaults
+          vipMinCUP: 15000,
+          vipMinMLC: 150,
+          vipMinOrders: 10,
+          oroMinCUP: 6000,
+          oroMinMLC: 60,
+          oroMinOrders: 5,
+          plataMinCUP: 2000,
+          plataMinMLC: 20,
+          plataMinOrders: 2
         });
       }
       setLoading(false);
@@ -238,7 +339,10 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
         
         const updatedSettings = {
           ...settings,
-          address: fullAddress
+          address: fullAddress,
+          logo: settings.logo || null,
+          banner: settings.banner || null,
+          storeImage: settings.storeImage || null
         };
 
         // Update both top-level and settings object in the store document
@@ -247,6 +351,8 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
           name: settings.name,
           description: settings.description,
           logo: settings.logo || null,
+          banner: settings.banner || null,
+          storeImage: settings.storeImage || null,
           location: {
             province: address.province.trim(),
             municipality: address.municipality.trim(),
@@ -553,6 +659,117 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
                 </div>
               </CardContent>
             </Card>
+
+            {/* CARD: UMBRALES DE FIDELIDAD DEL CLIENTE (ANTI-INFLACIÓN) */}
+            <Card className="col-span-1 md:col-span-2 border-2 border-slate-100 dark:border-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden bg-white dark:bg-slate-900 mt-4">
+              <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b-2 border-slate-100 dark:border-slate-800 p-8">
+                <CardTitle className="text-xl font-black uppercase italic tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
+                  <Award className="h-5 w-5 text-primary" /> Umbrales globales de Fidelidad del Cliente (Escudo Anti-Inflación)
+                </CardTitle>
+                <CardDescription className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  Ajusta los montos acumulados mínimos y cantidad de pedidos que deben cumplir los clientes para escalar de tier de fidelidad en las tiendas. Incrementa estos valores si la inflación hace que los clientes alcancen los niveles muy rápido.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* VIP */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border-2 border-slate-100 dark:border-slate-800 space-y-4">
+                    <span className="text-xs font-black uppercase text-rose-500 tracking-widest block bg-rose-500/10 px-3 py-1.5 rounded-full w-fit">🥇 Categoría VIP</span>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mínimo Compra (CUP)</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-805 rounded-xl font-black"
+                        value={settings.vipMinCUP ?? 15000}
+                        onChange={(e) => setSettings({ ...settings, vipMinCUP: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mínimo Compra (MLC)</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-805 rounded-xl font-black"
+                        value={settings.vipMinMLC ?? 150}
+                        onChange={(e) => setSettings({ ...settings, vipMinMLC: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Cantidad Mínima Pedidos</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-850 rounded-xl font-black"
+                        value={settings.vipMinOrders ?? 10}
+                        onChange={(e) => setSettings({ ...settings, vipMinOrders: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ORO */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border-2 border-slate-100 dark:border-slate-800 space-y-4">
+                    <span className="text-xs font-black uppercase text-amber-500 tracking-widest block bg-amber-500/10 px-3 py-1.5 rounded-full w-fit">🥈 Categoría Oro</span>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mínimo Compra (CUP)</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-805 rounded-xl font-black"
+                        value={settings.oroMinCUP ?? 6000}
+                        onChange={(e) => setSettings({ ...settings, oroMinCUP: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mínimo Compra (MLC)</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-805 rounded-xl font-black"
+                        value={settings.oroMinMLC ?? 60}
+                        onChange={(e) => setSettings({ ...settings, oroMinMLC: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Cantidad Mínima Pedidos</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-850 rounded-xl font-black"
+                        value={settings.oroMinOrders ?? 5}
+                        onChange={(e) => setSettings({ ...settings, oroMinOrders: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* PLATA */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border-2 border-slate-100 dark:border-slate-800 space-y-4">
+                    <span className="text-xs font-black uppercase text-indigo-500 tracking-widest block bg-indigo-500/10 px-3 py-1.5 rounded-full w-fit">🥉 Categoría Plata</span>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mínimo Compra (CUP)</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-805 rounded-xl font-black"
+                        value={settings.plataMinCUP ?? 2000}
+                        onChange={(e) => setSettings({ ...settings, plataMinCUP: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mínimo Compra (MLC)</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-805 rounded-xl font-black"
+                        value={settings.plataMinMLC ?? 20}
+                        onChange={(e) => setSettings({ ...settings, plataMinMLC: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Cantidad Mínima Pedidos</Label>
+                      <Input
+                        type="number"
+                        className="h-11 bg-white dark:bg-slate-900 border-2 border-slate-150 dark:border-slate-850 rounded-xl font-black"
+                        value={settings.plataMinOrders ?? 2}
+                        onChange={(e) => setSettings({ ...settings, plataMinOrders: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -584,23 +801,49 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
                 />
               </div>
               <div className="grid gap-3">
-                <Label htmlFor="store-logo" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Recurso de Marca (Logo URL)</Label>
-                <div className="flex gap-4 items-end">
-                  <div className="flex-1">
-                    <Input 
-                      id="store-logo" 
-                      placeholder="https://tuweb.com/logo.png o link de Google Drive"
-                      className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all shadow-sm"
-                      value={settings.logo || ''} 
-                      onChange={(e) => setSettings({ ...settings, logo: e.target.value })}
-                    />
-                  </div>
-                  {settings.logo && (
-                    <div className="h-12 w-12 rounded-xl border-2 border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 overflow-hidden flex items-center justify-center p-1">
-                      <img src={getProxyImageUrl(settings.logo)} alt="Preview" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
-                    </div>
-                  )}
-                </div>
+                <Label htmlFor="store-logo" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Recurso de Marca (Logo de la Tienda)</Label>
+                <ImageFileUploader 
+                  value={settings.logo || ""} 
+                  onChange={(url) => setSettings({ ...settings, logo: url })} 
+                  placeholder="Arrastra el logo físico o haz clic"
+                />
+                <Input 
+                  id="store-logo" 
+                  placeholder="https://tuweb.com/logo.png o pega un link"
+                  className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all shadow-sm"
+                  value={settings.logo || ''} 
+                  onChange={(e) => setSettings({ ...settings, logo: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-3">
+                <Label htmlFor="store-banner" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Imagen de Portada o Banner (Imagen Representativa)</Label>
+                <ImageFileUploader 
+                  value={settings.banner || ""} 
+                  onChange={(url) => setSettings({ ...settings, banner: url })} 
+                  placeholder="Arrastra tu portada física o haz clic"
+                />
+                <Input 
+                  id="store-banner" 
+                  placeholder="https://tuweb.com/portada.png o pega un link"
+                  className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all shadow-sm"
+                  value={settings.banner || ''} 
+                  onChange={(e) => setSettings({ ...settings, banner: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-3">
+                <Label htmlFor="store-image" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Imagen de Tienda (Adicional al Logo)</Label>
+                <ImageFileUploader 
+                  value={settings.storeImage || ""} 
+                  onChange={(url) => setSettings({ ...settings, storeImage: url })} 
+                  placeholder="Arrastra una foto de la tienda física o haz clic"
+                />
+                <Input 
+                  id="store-image" 
+                  placeholder="https://tuweb.com/tienda_adicional.png o pega un link"
+                  className="h-12 bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all shadow-sm"
+                  value={settings.storeImage || ''} 
+                  onChange={(e) => setSettings({ ...settings, storeImage: e.target.value })}
+                />
               </div>
             </CardContent>
           </Card>
@@ -620,27 +863,40 @@ export default function SettingsManager({ storeId, platformMode }: { storeId?: s
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-3">
                     <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Provincia</Label>
-                    <Input 
-                      placeholder="Ej: Camagüey"
-                      value={address.province} 
-                      className="h-12 bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:border-amber-400 dark:text-white transition-all shadow-sm"
+                    <select
+                      className="flex w-full h-12 bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold dark:text-white px-3 focus:outline-none focus:ring-0 text-sm"
+                      value={address.province}
                       onChange={(e) => setAddress({ ...address, province: e.target.value })}
-                    />
+                    >
+                      {[
+                        'La Habana', 'Pinar del Río', 'Artemisa', 'Mayabeque', 'Matanzas', 
+                        'Cienfuegos', 'Villa Clara', 'Sancti Spíritus', 'Ciego de Ávila', 
+                        'Camagüey', 'Las Tunas', 'Holguín', 'Granma', 'Santiago de Cuba', 
+                        'Guantánamo', 'Isla de la Juventud'
+                      ].map(prov => (
+                        <option key={prov} value={prov}>{prov}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="grid gap-3">
                     <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Municipio</Label>
-                    <Input 
-                      placeholder="Ej: Nuevitas"
-                      value={address.municipality} 
-                      className="h-12 bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:border-amber-400 dark:text-white transition-all shadow-sm"
+                    <select
+                      className="flex w-full h-12 bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold dark:text-white px-3 focus:outline-none focus:ring-0 text-sm"
+                      value={address.municipality}
                       onChange={(e) => setAddress({ ...address, municipality: e.target.value })}
-                    />
+                    >
+                      {(CUBAN_PROVINCES_MUNICIPALITIES[address.province] || ['Plaza de la Revolución']).map(muni => (
+                        <option key={muni} value={muni}>{muni}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="grid gap-3">
                   <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-300 ml-1">Localidad / Barrio</Label>
                   <Input 
-                    placeholder="Ej: Centro Historico"
+                    autoComplete="new-locality-owner"
+                    name="owner_store_locality"
+                    placeholder="Ej: Centro Histórico, Vedado"
                     value={address.locality} 
                     className="h-12 bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl font-bold focus:border-amber-400 dark:text-white transition-all shadow-sm"
                     onChange={(e) => setAddress({ ...address, locality: e.target.value })}

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
+import { cn } from '../lib/utils';
 
 interface InteractiveTutorialProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export default function InteractiveTutorial({ isOpen, onClose }: InteractiveTuto
       title: "Explora la Gran Plaza",
       desc: "Navega entre decenas de tiendas locales de tu provincia en Cuba. Utiliza el buscador para localizar frutas, cárnicos, cervezas o combos elaborados de forma directa y sin filtros ocultos.",
       icon: Compass,
-      tip: "¡Oye asere, puedes filtrar por tu municipio para ahorrar en los envíos!"
+      tip: "¡Oye asere, puedes filtrar por tu provincia y municipio para ahorrar en los envíos!"
     },
     {
       title: "Consigue el Precio de Mayorista (Wholesale)",
@@ -72,10 +73,10 @@ export default function InteractiveTutorial({ isOpen, onClose }: InteractiveTuto
       tip: "¡El carrito de PaTí te dice en tiempo real cuánto te estás ahorrando!"
     },
     {
-      title: "Confirma y envía por WhatsApp",
-      desc: "En Cuba el trato directo es ley. Con un solo click, se genera un mensaje impecable para WhatsApp con el listado de productos, empaques y sumas. Se lo envías directo al dueño para acordar el pago y envío.",
+      title: "Sistema de Fidelidad y WhatsApp",
+      desc: "Al confirmar tu compra, se calcula tu acumulado. Escalas automáticamente en categorías (Bronce, Plata, Oro, VIP) que los administradores configuran globalmente. Envía el pedido impecable por WhatsApp directo al dueño, ¡sin intermediarios!",
       icon: Phone,
-      tip: "Puedes pagar en CUP, MLC o Zelle según las cuentas del vendedor."
+      tip: "¡Las tarjetas de clientes recurrentes reflejan tu categoría VIP, Oro o Plata al instante para darte un trato preferencial!"
     }
   ];
 
@@ -83,7 +84,7 @@ export default function InteractiveTutorial({ isOpen, onClose }: InteractiveTuto
   const adminSteps = [
     {
       title: "Registra tu Negocio de Película",
-      desc: "Da de alta tu tienda en segundos con nombre, descripción, tu logo y tus datos de contacto. Recibirás un enlace público personalizado tipo 'patis.app/store/tu-nombre' listo para compartir en redes.",
+      desc: "Da de alta tu tienda en segundos con nombre, descripción, tu logo y tus datos de contacto. Recibirás un enlace público personalizado tipo '/store/tu-nombre' listo para compartir en redes.",
       icon: Store,
       tip: "Sube un logo cuadrado bien nítido para que los clientes te recuerden."
     },
@@ -94,16 +95,16 @@ export default function InteractiveTutorial({ isOpen, onClose }: InteractiveTuto
       tip: "¡Configurar empaques y escalas atrae pedidos 3 veces más grandes!"
     },
     {
-      title: "Control maestro de tus Finanzas",
-      desc: "Configura tus métodos de cobro detallando tus tarjetas CUP (Transfermóvil), cuentas MLC o Zelle. Cuando entra un pedido por WhatsApp, tú cobras tu dinero íntegro, sin intermediarios metiendo la mano.",
+      title: "Parámetros de Fidelidad y Finanzas",
+      desc: "Configura tus métodos de cobro detallando tus tarjetas CUP (Transfermóvil) o cuentas MLC/Zelle. Define los umbrales de fidelidad (VIP, Oro, Plata) para combatir la alta inflación y proteger tus escalas de clientes.",
       icon: DollarSign,
-      tip: "¡Control total! Cobras tú y después despachas de forma segura."
+      tip: "¡Control total! Ajusta los valores de las categorías si ves que cumplen muy fácil."
     },
     {
       title: "Zonas de Envíos y Mensajería",
-      desc: "Define los municipios que cubres y las tarifas fijas de envíos. Tus repartidores sabrán exactamente a dónde ir, y los clientes verán el costo calculado automáticamente antes de pedir.",
+      desc: "Define los municipios que cubres y las tarifas de envíos. Tus repartidores sabrán exactamente a dónde ir, y los clientes verán el costo de traslado calculado de forma automática antes de ordenar.",
       icon: TrendingUp,
-      tip: "También puedes activar 'Recogida en Tienda' para que pasen por tu local."
+      tip: "Controla el boletín de novedades integrado para enterarte del sistema de actualizaciones."
     }
   ];
 
@@ -214,10 +215,28 @@ export default function InteractiveTutorial({ isOpen, onClose }: InteractiveTuto
               {/* Left Column: Educational Step-by-Step */}
               <div className="flex-1 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-100 dark:border-slate-800 pb-8 lg:pb-0 lg:pr-8 min-w-0">
                 <div>
-                  <div className="flex items-center gap-2 mb-6">
-                    <Badge className="bg-primary/10 text-primary border-none rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest mb-1">
+                  <div className="flex flex-col gap-2 mb-6">
+                    <Badge className="bg-primary/10 text-primary border-none rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest self-start">
                       Paso {(selectedRole === 'client' ? clientStep : adminStep) + 1} de 4
                     </Badge>
+                    <div className="flex gap-1.5 w-full max-w-[160px] mt-2">
+                      {[0, 1, 2, 3].map((sIdx) => {
+                        const activeStep = selectedRole === 'client' ? clientStep : adminStep;
+                        return (
+                          <div 
+                            key={sIdx}
+                            className={cn(
+                              "h-2 rounded-full transition-all duration-500",
+                              sIdx === activeStep 
+                                ? "w-8 bg-primary" 
+                                : sIdx < activeStep 
+                                  ? "w-4 bg-primary/60" 
+                                  : "w-4 bg-slate-200 dark:bg-slate-850"
+                            )}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <AnimatePresence mode="wait">

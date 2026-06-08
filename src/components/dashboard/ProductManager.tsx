@@ -71,6 +71,7 @@ import { Product, Category, PriceHistory } from '../../types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import VolumeDiscountCalculator from './VolumeDiscountCalculator';
+import { ImageFileUploader } from '../ImageFileUploader';
 
 const PACKAGING_PRESETS = [
   { name: 'Caja x24', quantity: 24, targetProfitMargin: 70 },
@@ -371,6 +372,9 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
             price: activeProduct.price || 0,
             currency: activeProduct.currency || "CUP",
             margin: opt.targetProfitMargin || 70,
+            individualWholesaleTiers: activeProduct.wholesaleTiers || [],
+            packagingName: opt.name || "Embalaje",
+            packagingQuantity: opt.quantity || 1,
           },
           tiers: currentTiers.map(t => ({
             minPackages: t.minPackages,
@@ -980,12 +984,13 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
           </div>
 
           <div className="border-2 rounded-[2rem] bg-white dark:bg-slate-950 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-slate-950/40 border-slate-100 dark:border-slate-800">
-        {loading ? (
-          <div className="p-20 flex justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-          </div>
-        ) : (
-          <Table>
+            <div className="overflow-x-auto pretty-scrollbar-x w-full">
+              {loading ? (
+                <div className="p-20 flex justify-center">
+                  <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+                </div>
+              ) : (
+                <Table>
             <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
               <TableRow className="hover:bg-transparent border-b-2 border-slate-100 dark:border-slate-800">
                 <TableHead className="w-[100px] font-black text-slate-900 dark:text-slate-100 uppercase text-[10px] tracking-widest p-6 whitespace-nowrap">Visual</TableHead>
@@ -1101,7 +1106,8 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
             </TableBody>
           </Table>
         )}
-      </div>
+            </div>
+          </div>
       </TabsContent>
 
       <TabsContent value="categories">
@@ -1215,7 +1221,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
               <TabsContent value="general" className="m-0 outline-none">
                 {editingProduct && (
                   <div className="grid gap-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="name" className="font-bold">Nombre del Producto</Label>
                         <Input 
@@ -1253,7 +1259,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                       />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="cost">Costo Unidad</Label>
                         <Input 
@@ -1272,7 +1278,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                           onChange={(e) => setEditingProduct({...editingProduct, price: Number(e.target.value)})}
                         />
                       </div>
-                      <div className="grid gap-2">
+                      <div className="grid gap-2 col-span-2 sm:col-span-1">
                         <Label htmlFor="stock" className="text-slate-400">Stock Actual (Solo lectura)</Label>
                         <Input 
                           id="stock" 
@@ -1283,7 +1289,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                         />
                         <p className="text-[10px] text-indigo-500 font-bold italic">Cambia el stock en la pestaña Inventario</p>
                       </div>
-                      <div className="grid gap-2">
+                      <div className="grid gap-2 col-span-2 sm:col-span-1">
                         <Label htmlFor="expiryDate" className="font-bold">Fecha de Vencimiento (Opcional)</Label>
                         <Input 
                           id="expiryDate" 
@@ -1310,6 +1316,22 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-image" className="font-bold">Imagen del Producto (Subida Física o URL)</Label>
+                      <ImageFileUploader 
+                        value={editingProduct.image || ""} 
+                        onChange={(url) => setEditingProduct({...editingProduct, image: url})} 
+                        placeholder="Arrastra la foto del producto o haz clic"
+                      />
+                      <Input 
+                        id="edit-image" 
+                        placeholder="O pega una URL de internet para actualizar de forma remota (opcional)"
+                        value={editingProduct.image || ""} 
+                        onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
+                        className="mt-1 h-9 text-xs"
+                      />
                     </div>
 
                     {/* Wholesale Tiers for Units */}
@@ -1652,11 +1674,11 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                               <div className="grid gap-2">
                                 {(opt.wholesaleTiers || []).map((tier, tierIdx) => (
                                   <div key={tier.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border shadow-sm">
-                                    <div className="col-span-4 flex items-center gap-2">
-                                      <Label className="text-[10px] whitespace-nowrap">Desde</Label>
+                                    <div className="col-span-5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                      <Label className="text-[10px] text-slate-500 font-bold shrink-0">Desde</Label>
                                       <Input 
                                         type="number" 
-                                        className="h-8 text-xs font-bold"
+                                        className="h-8 text-xs font-bold w-full"
                                         value={tier.minPackages}
                                         onChange={(e) => {
                                           const options = [...(editingProduct.packagingOptions || [])];
@@ -1666,13 +1688,12 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                                           }
                                         }}
                                       />
-                                      <span className="text-[10px] text-slate-400 font-bold uppercase">{tier.minPackages} {(opt.name || 'Empaque').toLowerCase()}s</span>
                                     </div>
-                                    <div className="col-span-5 flex items-center gap-2">
-                                      <Label className="text-[10px] whitespace-nowrap">Precio Unit.</Label>
+                                    <div className="col-span-5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                      <Label className="text-[10px] text-slate-500 font-bold shrink-0">P. Unit</Label>
                                       <Input 
                                         type="number" 
-                                        className="h-8 text-xs font-bold"
+                                        className="h-8 text-xs font-bold w-full"
                                         value={tier.pricePerUnit}
                                         onChange={(e) => {
                                           const options = [...(editingProduct.packagingOptions || [])];
@@ -1683,7 +1704,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                                         }}
                                       />
                                     </div>
-                                    <div className="col-span-3 flex justify-end gap-1">
+                                    <div className="col-span-2 flex justify-end gap-1">
                                       <Button 
                                         variant="ghost" 
                                         size="icon" 
@@ -1906,8 +1927,8 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
           </DialogHeader>
           
           <div className="grid gap-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2 flex-1">
                 <Label htmlFor="add-name" className="font-bold">Nombre del Producto</Label>
                 <Input 
                   id="add-name" 
@@ -1946,7 +1967,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="add-cost">Costo</Label>
                 <Input 
@@ -1992,7 +2013,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 col-span-2 sm:col-span-1">
                 <Label htmlFor="add-expiry" className="font-bold">Fecha de Vencimiento</Label>
                 <Input 
                   id="add-expiry" 
@@ -2290,11 +2311,11 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                       <div className="grid gap-2">
                         {(opt.wholesaleTiers || []).map((tier, tierIdx) => (
                           <div key={tier.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border shadow-sm">
-                            <div className="col-span-4 flex items-center gap-2">
-                              <Label className="text-[10px] whitespace-nowrap font-black uppercase text-slate-400 tracking-widest leading-none">Mín. Formatos</Label>
+                            <div className="col-span-12 sm:col-span-5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <Label className="text-[10px] sm:whitespace-nowrap font-black uppercase text-slate-400 tracking-widest leading-none">Mínimo</Label>
                               <Input 
                                 type="number" 
-                                className="h-10 text-[12px] font-black rounded-xl border-2 bg-white"
+                                className="h-10 text-[12px] font-black rounded-xl border-2 bg-white w-full"
                                 value={tier.minPackages}
                                 onChange={(e) => {
                                   const options = [...(newProduct.packagingOptions || [])];
@@ -2305,11 +2326,11 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                                 }}
                               />
                             </div>
-                            <div className="col-span-5 flex items-center gap-2">
-                              <Label className="text-[10px] whitespace-nowrap font-black uppercase text-slate-400 tracking-widest leading-none">P. Unitario</Label>
+                            <div className="col-span-12 sm:col-span-5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <Label className="text-[10px] sm:whitespace-nowrap font-black uppercase text-slate-400 tracking-widest leading-none">P. Unit</Label>
                               <Input 
                                 type="number" 
-                                className="h-10 text-[12px] font-black rounded-xl border-2 bg-white"
+                                className="h-10 text-[12px] font-black rounded-xl border-2 bg-white w-full"
                                 value={tier.pricePerUnit}
                                 onChange={(e) => {
                                   const options = [...(newProduct.packagingOptions || [])];
@@ -2320,7 +2341,7 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
                                 }}
                               />
                             </div>
-                            <div className="col-span-3 flex justify-end gap-1">
+                            <div className="col-span-12 sm:col-span-2 flex justify-end gap-1">
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -2419,14 +2440,20 @@ export default function ProductManager({ storeId }: { storeId?: string }) {
               </div>
 
               <div className="grid gap-2">
-              <Label htmlFor="add-image">URL de Imagen (Opcional)</Label>
-              <Input 
-                id="add-image" 
-                placeholder="https://..."
-                value={newProduct.image} 
-                onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
-              />
-            </div>
+                <Label htmlFor="add-image" className="font-bold">Imagen del Producto (Subida Física o URL)</Label>
+                <ImageFileUploader 
+                  value={newProduct.image || ""} 
+                  onChange={(url) => setNewProduct({...newProduct, image: url})} 
+                  placeholder="Arrastra la foto del producto o haz clic"
+                />
+                <Input 
+                  id="add-image" 
+                  placeholder="O pega una URL de internet para actualizar de forma remota (opcional)"
+                  value={newProduct.image} 
+                  onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
+                  className="mt-1 h-9 text-xs"
+                />
+              </div>
           </div>
 
           <DialogFooter>

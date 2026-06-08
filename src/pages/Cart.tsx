@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -12,10 +13,45 @@ import { useTheme } from '../context/ThemeContext';
 import { toast } from "sonner";
 import { Loader2, Moon, Sun } from 'lucide-react';
 
+function CartItemQuantityInput({ item, updateQuantity }: { item: any; updateQuantity: any }) {
+  const [localVal, setLocalVal] = useState<string>(String(item.quantity));
+
+  useEffect(() => {
+    setLocalVal(String(item.quantity));
+  }, [item.quantity]);
+
+  const handleCommit = (valStr: string) => {
+    const parsed = parseInt(valStr);
+    if (!isNaN(parsed) && parsed >= 1) {
+      updateQuantity(item.productId, parsed, item.optionId);
+    } else {
+      updateQuantity(item.productId, 1, item.optionId);
+      setLocalVal("1");
+    }
+  };
+
+  return (
+    <input 
+      type="number" 
+      min={1}
+      className="w-12 text-center font-black text-base bg-transparent border-none outline-none focus:ring-0 p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+      value={localVal}
+      onChange={(e) => {
+        setLocalVal(e.target.value);
+        const parsed = parseInt(e.target.value);
+        if (!isNaN(parsed) && parsed >= 1) {
+          updateQuantity(item.productId, parsed, item.optionId);
+        }
+      }}
+      onBlur={() => handleCommit(localVal)}
+    />
+  );
+}
+
 export default function Cart() {
   const { items, updateQuantity, removeFromCart, totalCUP, totalMLC, count, clearCart } = useCart();
   const currentStoreId = items.length > 0 ? items[0].storeId : undefined;
-  const { settings, loading: settingsLoading } = useStoreSettings(currentStoreId);
+  const { settings, store, loading: settingsLoading } = useStoreSettings(currentStoreId);
   const { theme } = useTheme();
 
   if (settingsLoading) {
@@ -26,7 +62,15 @@ export default function Cart() {
     );
   }
 
-  const s = settings!;
+  const s = settings || {
+    logo: '',
+    name: 'Cargando...',
+    description: '',
+    whatsappNumber: '',
+    phone: '',
+  };
+
+  const catalogPath = store?.slug ? `/store/${store.slug}` : '/';
 
   if (count === 0) {
     return (
@@ -55,7 +99,7 @@ export default function Cart() {
           <Button 
             size="lg" 
             className="font-black px-10 h-14 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-all"
-            render={<Link to="/Catalog" />}
+            render={<Link to={catalogPath} />}
             nativeButton={false}
           >
             Explorar Catálogo
@@ -83,7 +127,7 @@ export default function Cart() {
             <Button 
               variant="ghost" 
               className="rounded-full font-bold text-muted-foreground hover:text-primary"
-              render={<Link to="/Catalog" />}
+              render={<Link to={catalogPath} />}
               nativeButton={false}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -176,7 +220,7 @@ export default function Cart() {
                         >
                           <Minus className="h-4 w-4" />
                         </Button>
-                        <span className="w-8 text-center font-black text-base">{item.quantity}</span>
+                        <CartItemQuantityInput item={item} updateQuantity={updateQuantity} />
                         <Button 
                           variant="ghost" 
                           size="icon" 

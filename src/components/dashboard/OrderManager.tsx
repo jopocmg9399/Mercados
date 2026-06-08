@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Eye, CheckCircle, XCircle, Loader2, Search, MapPin, Phone, User as UserIcon, Truck, Printer, ExternalLink } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Loader2, Search, MapPin, Phone, User as UserIcon, Truck, Printer, ExternalLink, DollarSign } from "lucide-react";
 import { db, handleFirestoreError, OperationType } from '../../firebase';
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, where } from 'firebase/firestore';
 import { Order, OrderStatus } from '../../types';
@@ -48,6 +48,17 @@ export default function OrderManager({ storeId }: { storeId?: string }) {
   const [search, setSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [store, setStore] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!storeId) return;
+    const unsubscribe = onSnapshot(doc(db, 'stores', storeId), (docSnap) => {
+      if (docSnap.exists()) {
+        setStore({ id: docSnap.id, ...docSnap.data() });
+      }
+    });
+    return () => unsubscribe();
+  }, [storeId]);
 
   useEffect(() => {
     if (!storeId) return;
@@ -178,10 +189,13 @@ export default function OrderManager({ storeId }: { storeId?: string }) {
   };
 
   const handleSendWhatsAppInvoice = (order: Order) => {
+    const isDrop = order.affiliateMode === 'direct_sale' && order.managerName;
+    
+    // Create clean, padded text rows for products
     const itemsText = order.items.map(item => {
       const pkg = item.packagingName ? ` [EMPAQUE: ${cleanPackagingName(item.packagingName).toUpperCase()}]` : '';
-      return `🔹 ${item.quantity}x ${item.name}${pkg} -> $${(item.price * (item.packagingQuantity || 1) * item.quantity).toLocaleString()} ${item.currency}`;
-    }).join('\n');
+      return `🔹 *${item.quantity}x ${item.name}*${pkg}\n   └─ Subtotal: $${(item.price * (item.packagingQuantity || 1) * item.quantity).toLocaleString()} ${item.currency}`;
+    }).join('\n\n');
 
     const deliveryCostText = order.deliveryMethod === 'delivery'
       ? (typeof order.deliveryCost === 'number' 
@@ -189,30 +203,102 @@ export default function OrderManager({ storeId }: { storeId?: string }) {
           : 'A Consultar')
       : 'Gratis (Recogida)';
 
-    const totalCUPText = order.totalCUP > 0 ? `💵 *TOTAL CUP:* $${order.totalCUP.toLocaleString()} CUP` : '';
-    const totalMLCText = order.totalMLC > 0 ? `💳 *TOTAL MLC:* $${order.totalMLC.toLocaleString()} MLC` : '';
+    const totalCUPText = order.totalCUP > 0 ? `💵 *TOTAL CUP:*  $${order.totalCUP.toLocaleString()} CUP` : '';
+    const totalMLCText = order.totalMLC > 0 ? `💳 *TOTAL MLC:*  $${order.totalMLC.toLocaleString()} MLC` : '';
 
-    const text = `🧾 *FACTURA DE COMPRA*
----------------------------
-📄 *Orden:* #${order.id.substring(0, 8).toUpperCase()}
-👤 *Cliente:* ${order.customerName}
-📞 *Teléfono:* ${order.customerPhone}
-📍 *Dirección:* ${order.customerAddress}
-🚚 *Entrega:* ${order.deliveryMethod === 'delivery' ? 'Domicilio' : 'Recogida en tienda'} (${deliveryCostText})
----------------------------
-📦 *PRODUCTOS:*
-${itemsText}
----------------------------
-💰 *LIQUIDACIÓN:*
-${totalCUPText}
-${totalMLCText}
----------------------------
-🙏 ¡Gracias por su compra!`;
+    const lines = [
+      `🧾 *FACTURA DE COMPRA*`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `📄 *Órden:*     #${order.id.substring(0, 8).toUpperCase()}`,
+      `────────────────────────`,
+      isDrop ? `👤 *Cliente Final:* ${order.customerName}` : `👤 *Cliente:*    ${order.customerName}`,
+      `📞 *Teléfono:*   ${order.customerPhone}`,
+      `📍 *Dirección:*  ${order.customerAddress}`,
+      `🚚 *Entrega:*    ${order.deliveryMethod === 'delivery' ? 'Domicilio' : 'Recogida en tienda'} (${deliveryCostText})`,
+    ];
 
+    if (isDrop) {
+      lines.push(
+        `────────────────────────`,
+        `💼 *Gestor / Socio:* ${order.managerName} (${order.referralCode || 'Sin código'})`,
+        `📞 *Teléfono Gestor:* ${order.managerPhone}`
+      );
+    }
+
+    lines.push(
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `📦 *DETALLE DE PRODUCTOS:*`,
+      `────────────────────────`,
+      itemsText,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💰 *LIQUIDACIÓN:*`,
+      `────────────────────────`
+    );
+
+    if (totalCUPText) lines.push(totalCUPText);
+    if (totalMLCText) lines.push(totalMLCText);
+
+    lines.push(
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `🙏 ¡Muchas gracias por su compra!`
+    );
+
+    const text = lines.filter(Boolean).join('\n');
     const encodedText = encodeURIComponent(text);
     const cleanPhone = order.customerPhone.replace(/[^0-9]/g, '');
     const prefixedPhone = cleanPhone.length === 8 ? `53${cleanPhone}` : cleanPhone;
     
+    window.open(`https://wa.me/${prefixedPhone}?text=${encodedText}`, '_blank');
+  };
+
+  const handleSendWhatsAppCommissionInvoice = (order: Order) => {
+    const rate = store?.commissionRate || 5;
+    const cupCommission = (order.totalCUP || 0) * rate / 100;
+    const mlcCommission = (order.totalMLC || 0) * rate / 100;
+
+    const totalCUPText = order.totalCUP > 0 ? `💵 *COMISIÓN CUP:*  $${cupCommission.toLocaleString()} CUP` : '';
+    const totalMLCText = order.totalMLC > 0 ? `💳 *COMISIÓN MLC:*  $${mlcCommission.toLocaleString()} MLC` : '';
+
+    const managerNameText = order.managerName || order.customerName;
+
+    const lines = [
+      `🧾 *FACTURA DE COMISIÓN (SOCIO)*`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💼 *Socio / Gestor:*  ${managerNameText}`,
+      `🔑 *Código Socio:*     ${order.referralCode || 'Sin código'}`,
+      `🛒 *Tienda:*           ${store?.name || 'Nuestra Tienda'}`,
+      `────────────────────────`,
+      `📄 *Órden:*           #${order.id.substring(0, 8).toUpperCase()}`,
+      `👤 *Cliente Final:*   ${order.customerName}`,
+      `🚚 *Tipo Entrega:*    ${order.deliveryMethod === 'delivery' ? 'Domicilio' : 'Recogida'}`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💰 *RESUMEN DE VENTA:*`,
+      `────────────────────────`,
+      order.totalCUP > 0 ? `🔹 Total Venta CUP: $${order.totalCUP.toLocaleString()} CUP` : '',
+      order.totalMLC > 0 ? `🔹 Total Venta MLC: $${order.totalMLC.toLocaleString()} MLC` : '',
+      `🔹 Porcentaje:      ${rate}%`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `💵 *LIQUIDAR COMISIÓN:*`,
+      `────────────────────────`,
+    ];
+
+    if (totalCUPText) lines.push(totalCUPText);
+    if (totalMLCText) lines.push(totalMLCText);
+
+    lines.push(
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `🙏 ¡Gracias por tu tremenda gestión, asere!`,
+      `🚀 PaTí - Tu negocio en tus manos`
+    );
+
+    const text = lines.filter(Boolean).join('\n');
+    const encodedText = encodeURIComponent(text);
+
+    // Send to partner/manager if they have a phone, otherwise use client's phone number as fallback or store number
+    const targetPhone = order.managerPhone || order.customerPhone || store?.whatsappNumber || '';
+    const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+    const prefixedPhone = cleanPhone.length === 8 ? `53${cleanPhone}` : cleanPhone;
+
     window.open(`https://wa.me/${prefixedPhone}?text=${encodedText}`, '_blank');
   };
 
@@ -267,12 +353,13 @@ ${totalMLCText}
       </div>
 
       <div className="border-2 rounded-[2rem] bg-white dark:bg-slate-950 overflow-hidden shadow-2xl shadow-slate-200/50 dark:shadow-slate-950/40 border-slate-100 dark:border-slate-800">
-        {loading ? (
-          <div className="p-20 flex justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-          </div>
-        ) : (
-          <Table>
+        <div className="overflow-x-auto pretty-scrollbar-x w-full">
+          {loading ? (
+            <div className="p-20 flex justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+            </div>
+          ) : (
+            <Table>
             <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
               <TableRow className="hover:bg-transparent border-b-2 border-slate-100 dark:border-slate-800">
                 <TableHead className="font-black text-slate-900 dark:text-slate-100 uppercase text-[10px] tracking-[0.2em] p-6 text-center">Ref</TableHead>
@@ -385,6 +472,7 @@ ${totalMLCText}
             </TableBody>
           </Table>
         )}
+        </div>
       </div>
 
       {/* Order Details Modal */}
@@ -491,6 +579,18 @@ ${totalMLCText}
                     Enviar WhatsApp
                   </Button>
                 </div>
+
+                {selectedOrder.referralCode && (
+                  <div className="mt-4">
+                    <Button 
+                      onClick={() => handleSendWhatsAppCommissionInvoice(selectedOrder)}
+                      className="w-full rounded-[1.25rem] h-14 bg-amber-500 hover:bg-amber-600 text-white font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 animate-in fade-in duration-300"
+                    >
+                      <DollarSign className="h-5 w-5" />
+                      Enviar Factura de Comisión a Socio
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}

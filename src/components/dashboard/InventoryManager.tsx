@@ -442,12 +442,13 @@ export default function InventoryManager({ storeId }: { storeId?: string }) {
       </div>
 
       <div className="border-2 rounded-[2rem] bg-white dark:bg-slate-950 overflow-hidden shadow-2xl shadow-slate-200/50 dark:shadow-slate-950/40 border-slate-100 dark:border-slate-800">
-        {loading ? (
-          <div className="p-20 flex justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-          </div>
-        ) : (
-          <Table>
+        <div className="overflow-x-auto pretty-scrollbar-x w-full">
+          {loading ? (
+            <div className="p-20 flex justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+            </div>
+          ) : (
+            <Table>
             <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
               <TableRow className="hover:bg-transparent border-b-2 border-slate-100 dark:border-slate-800">
                 <TableHead className="font-black text-slate-900 dark:text-slate-100 uppercase text-[10px] tracking-[0.2em] p-6">Fecha / Registro</TableHead>
@@ -586,6 +587,7 @@ export default function InventoryManager({ storeId }: { storeId?: string }) {
             </TableBody>
           </Table>
         )}
+        </div>
       </div>
 
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>

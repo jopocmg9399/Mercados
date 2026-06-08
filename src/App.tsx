@@ -18,7 +18,7 @@ export default function App() {
     <ThemeProvider>
       <CartProvider>
         <Router>
-          <div className="min-h-screen bg-background text-foreground font-sans antialiased transition-colors duration-300">
+          <div className="min-h-screen w-full overflow-x-hidden bg-background text-foreground font-sans antialiased transition-colors duration-300">
             <Routes>
               <Route path="/" element={<PlatformHome />} />
               <Route path="/store/:storeSlug" element={<Catalog />} />

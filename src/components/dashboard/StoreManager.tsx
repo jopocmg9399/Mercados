@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
   Edit, 
@@ -36,17 +36,92 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import StoreBackupRestore from './StoreBackupRestore';
+import { ImageFileUploader } from '../ImageFileUploader';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 
+const CUBAN_PROVINCES_MUNICIPALITIES: Record<string, string[]> = {
+  'La Habana': [
+    'Plaza de la Revolución', 'Playa', 'Centro Habana', 'Habana Vieja', 'Regla',
+    'Guanabacoa', 'San Miguel del Padrón', 'Diez de Octubre', 'Cerro', 'Marianao',
+    'La Lisa', 'Boyeros', 'Arroyo Naranjo', 'Cotorro', 'Habana del Este'
+  ],
+  'Pinar del Río': [
+    'Pinar del Río', 'Consolación del Sur', 'Viñales', 'Minas de Matahambre', 
+    'San Juan y Martínez', 'San Luis', 'Guane', 'Mantua', 'Sandino', 'Los Palacios', 'La Palma'
+  ],
+  'Artemisa': [
+    'Artemisa', 'Bauta', 'Caimito', 'Guanajay', 'Mariel', 'San Antonio de los Baños', 
+    'Bahía Honda', 'San Cristóbal', 'Candelaria', 'Alquízar', 'Güira de Melena'
+  ],
+  'Mayabeque': [
+    'San José de las Lajas', 'Bejucal', 'Jaruco', 'Santa Cruz del Norte', 'Madruga', 
+    'Nueva Paz', 'San Nicolás', 'Melena del Sur', 'Batabanó', 'Quivicán', 'Güines'
+  ],
+  'Matanzas': [
+    'Matanzas', 'Cárdenas', 'Varadero', 'Jovellanos', 'Limonar', 'Colón', 'Jagüey Grande', 
+    'Calimete', 'Martí', 'Pedro Betancourt', 'Unión de Reyes', 'Los Arabos', 'Ciénaga de Zapata'
+  ],
+  'Cienfuegos': [
+    'Cienfuegos', 'Abreus', 'Aguada de Pasajeros', 'Cruces', 'Lajas', 'Palmira', 'Rodas', 'Cumanayagua'
+  ],
+  'Villa Clara': [
+    'Santa Clara', 'Sagua la Grande', 'Caibarién', 'Remedios', 'Camajuaní', 'Placetas', 
+    'Ranchuelo', 'Santo Domingo', 'Manicaragua', 'Cifuentes', 'Encrucijada', 'Quemado de Güines', 'Corralillo'
+  ],
+  'Sancti Spíritus': [
+    'Sancti Spíritus', 'Trinidad', 'Cabaiguán', 'Fomento', 'Jatibonico', 'Taguasco', 'Yaguajay', 'La Sierpe'
+  ],
+  'Ciego de Ávila': [
+    'Ciego de Ávila', 'Morón', 'Chambas', 'Florencia', 'Venezuela', 'Baraguá', 'Primero de Enero', 
+    'Ciro Redondo', 'Majagua', 'Bolivia'
+  ],
+  'Camagüey': [
+    'Camagüey', 'Nuevitas', 'Florida', 'Vertientes', 'Guáimaro', 'Sibanicú', 'Jimaguayú', 
+    'Santa Cruz del Sur', 'Najasa', 'Esmeralda', 'Sierra de Cubitas', 'Minas', 'Céspedes'
+  ],
+  'Las Tunas': [
+    'Las Tunas', 'Puerto Padre', 'Amancio', 'Colombia', 'Jesús Menéndez', 'Majibacoa', 'Manatí', 'Jobabo'
+  ],
+  'Holguín': [
+    'Holguín', 'Banes', 'Gibara', 'Mayarí', 'Moa', 'Sagua de Tánamo', 'Rafael Freyre', 'Calixto García', 
+    'Cacocum', 'Baguanos', 'Urbano Noris', 'Cueto', 'Frank País', 'Antilla'
+  ],
+  'Granma': [
+    'Bayamo', 'Manzanillo', 'Jiguaní', 'Cauto Cristo', 'Río Cauto', 'Yara', 'Campechuela', 
+    'Media Luna', 'Niquero', 'Pilón', 'Bartolomé Masó', 'Buey Arriba', 'Guisa'
+  ],
+  'Santiago de Cuba': [
+    'Santiago de Cuba', 'Palma Soriano', 'Contramaestre', 'San Luis', 'Songo - La Maya', 
+    'Mella', 'Segundo Frente', 'Tercer Frente', 'Guamá'
+  ],
+  'Guantánamo': [
+    'Guantánamo', 'Baracoa', 'Maisí', 'Yateras', 'Imías', 'San Antonio del Sur', 
+    'Manuel Tames', 'Caimanera', 'El Salvador', 'Niceto Pérez'
+  ],
+  'Isla de la Juventud': [
+    'Nueva Gerona'
+  ]
+};
+
 export default function StoreManager() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<Store[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<CommissionPayment[]>([]);
   const [activeTab, setActiveTab] = useState<'stores' | 'commissions'>('stores');
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setIsDialogOpen(true);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('create');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [backupStore, setBackupStore] = useState<Store | null>(null);
 
@@ -78,6 +153,9 @@ export default function StoreManager() {
     activePaymentMethods: ['transfer', 'cash'] as ('transfer' | 'cash' | 'zelle')[],
     affiliateSystemEnabled: false,
     affiliateMode: 'recommendation' as 'recommendation' | 'direct_sale',
+    logo: '',
+    banner: '',
+    storeImage: '',
   });
 
   // Auto-generate slug from name
@@ -94,6 +172,18 @@ export default function StoreManager() {
       setFormData(prev => ({ ...prev, slug: generatedSlug }));
     }
   }, [formData.name, editingStore]);
+
+  // Sync municipality options when province changes in admin form
+  useEffect(() => {
+    const availableMunis = CUBAN_PROVINCES_MUNICIPALITIES[formData.province] || [];
+    if (availableMunis.length > 0) {
+      if (!availableMunis.includes(formData.municipality)) {
+        setFormData(prev => ({ ...prev, municipality: availableMunis[0] }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, municipality: '' }));
+    }
+  }, [formData.province]);
 
   useEffect(() => {
     const q = query(collection(db, 'stores'));
@@ -146,7 +236,8 @@ export default function StoreManager() {
                        formData.name.toLowerCase().trim().replace(/\s+/g, '-');
       const finalOwnerId = formData.ownerId || `user_${Math.random().toString(36).substr(2, 9)}`;
 
-      const storeData = {
+      const existingSettings = editingStore ? (editingStore.settings || {}) : {};
+      const storeData: any = {
         name: formData.name,
         slug: finalSlug,
         description: formData.description,
@@ -159,40 +250,42 @@ export default function StoreManager() {
           locality: formData.locality.trim(),
         },
         commissionRate: formData.commissionRate,
-        active: true,
-        featured: false,
-        createdAt: Date.now(),
+        active: editingStore ? (editingStore.active !== false) : true,
+        featured: editingStore ? (editingStore.featured === true) : false,
+        createdAt: editingStore ? (editingStore.createdAt || Date.now()) : Date.now(),
+        logo: formData.logo || null,
+        banner: formData.banner || null,
+        storeImage: formData.storeImage || null,
         settings: {
+          ...existingSettings,
           name: formData.name,
           description: formData.description,
           phone: formData.ownerPhone,
           whatsappNumber: formData.ownerPhone.replace(/\D/g, ''),
           address: `${formData.locality ? `${formData.locality}, ` : ''}${formData.municipality}, ${formData.province}, Cuba`,
           email: formData.ownerEmail,
-          cupPaymentInstructions: 'Pagar via Transfermóvil',
-          mlcPaymentInstructions: 'Pagar via Transferencia MLC',
-          mainCurrency: 'CUP' as Currency,
           enabledCurrencies: formData.enabledCurrencies,
-          exchangeRates: { 'MLC': 1, 'USD': 350 },
           activePaymentMethods: formData.activePaymentMethods,
           affiliateSystemEnabled: formData.affiliateSystemEnabled,
           affiliateMode: formData.affiliateMode,
-          zelleInstructions: '',
+          logo: formData.logo || null,
+          banner: formData.banner || null,
+          storeImage: formData.storeImage || null,
         }
       };
 
       if (editingStore) {
         await updateDoc(doc(db, 'stores', editingStore.id), storeData);
-        toast.success('Tienda actualizada con éxito');
+        toast.success('¡Oye asere, tienda actualizada como un cañón!');
       } else {
         await addDoc(collection(db, 'stores'), storeData);
-        toast.success('Nueva tienda generada con éxito');
+        toast.success('¡Tienda nuevecita de paquete generada!');
       }
       setIsDialogOpen(false);
       resetForm();
     } catch (error) {
       console.error(error);
-      toast.error('Error al guardar la tienda');
+      toast.error('Tremendo fly asere, no se pudo guardar la tienda');
     }
   };
 
@@ -213,6 +306,9 @@ export default function StoreManager() {
       activePaymentMethods: ['transfer', 'cash'],
       affiliateSystemEnabled: false,
       affiliateMode: 'recommendation',
+      logo: '',
+      banner: '',
+      storeImage: '',
     });
     setEditingStore(null);
   };
@@ -225,7 +321,7 @@ export default function StoreManager() {
       description: store.description,
       ownerId: store.ownerId,
       ownerName: store.ownerName,
-      ownerEmail: store.settings.email || '',
+      ownerEmail: store.settings?.email || '',
       ownerPhone: store.ownerPhone,
       province: store.location.province,
       municipality: store.location.municipality,
@@ -235,6 +331,9 @@ export default function StoreManager() {
       activePaymentMethods: store.settings?.activePaymentMethods || ['transfer', 'cash'],
       affiliateSystemEnabled: store.settings?.affiliateSystemEnabled || false,
       affiliateMode: store.settings?.affiliateMode || 'recommendation',
+      logo: store.logo || store.settings?.logo || '',
+      banner: store.banner || store.settings?.banner || '',
+      storeImage: store.storeImage || store.settings?.storeImage || '',
     });
     setIsDialogOpen(true);
   };
@@ -360,6 +459,38 @@ export default function StoreManager() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl border dark:border-slate-800">
+                <div className="col-span-full text-[10px] font-black text-indigo-600 uppercase tracking-[2px] mb-2 px-1">Diseño y Presencia (Opcional)</div>
+                <div className="space-y-2 col-span-full md:col-span-1">
+                  <Label className="font-bold text-[10px] uppercase tracking-widest ml-1">Logo de la Tienda (Físico o URL)</Label>
+                  <ImageFileUploader 
+                    value={formData.logo || ""} 
+                    onChange={(url) => setFormData({...formData, logo: url})} 
+                    placeholder="Sube el logo de la tienda"
+                  />
+                  <Input 
+                    value={formData.logo} 
+                    onChange={e => setFormData({...formData, logo: e.target.value})}
+                    placeholder="O pega una URL"
+                    className="rounded-xl mt-1 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-2 col-span-full md:col-span-1">
+                  <Label className="font-bold text-[10px] uppercase tracking-widest ml-1">Imagen de Tienda Adicional (Física o URL)</Label>
+                  <ImageFileUploader 
+                    value={formData.storeImage || ""} 
+                    onChange={(url) => setFormData({...formData, storeImage: url})} 
+                    placeholder="Sube foto adicional física"
+                  />
+                  <Input 
+                    value={formData.storeImage} 
+                    onChange={e => setFormData({...formData, storeImage: e.target.value})}
+                    placeholder="O pega una URL"
+                    className="rounded-xl mt-1 text-xs h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl border dark:border-slate-800">
                 <div className="col-span-full text-[10px] font-black text-primary uppercase tracking-[2px] mb-2 px-1">Datos del Administrador</div>
                 <div className="space-y-2">
                   <Label className="font-bold text-[10px] uppercase tracking-widest ml-1">Nombre Propietario</Label>
@@ -390,18 +521,46 @@ export default function StoreManager() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="font-bold text-[10px] uppercase tracking-widest ml-1">Provincia</Label>
-                  <Input value={formData.province} onChange={e => setFormData({...formData, province: e.target.value})} className="rounded-xl" required />
+                  <select
+                    className="flex w-full h-[40px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-xs px-3 focus:outline-none focus:ring-0"
+                    value={formData.province}
+                    onChange={e => setFormData({...formData, province: e.target.value})}
+                  >
+                    {[
+                      'La Habana', 'Pinar del Río', 'Artemisa', 'Mayabeque', 'Matanzas', 
+                      'Cienfuegos', 'Villa Clara', 'Sancti Spíritus', 'Ciego de Ávila', 
+                      'Camagüey', 'Las Tunas', 'Holguín', 'Granma', 'Santiago de Cuba', 
+                      'Guantánamo', 'Isla de la Juventud'
+                    ].map(prov => (
+                      <option key={prov} value={prov}>{prov}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label className="font-bold text-[10px] uppercase tracking-widest ml-1">Municipio</Label>
-                  <Input value={formData.municipality} onChange={e => setFormData({...formData, municipality: e.target.value})} className="rounded-xl" required />
+                  <select
+                    className="flex w-full h-[40px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-xs px-3 focus:outline-none focus:ring-0"
+                    value={formData.municipality}
+                    onChange={e => setFormData({...formData, municipality: e.target.value})}
+                  >
+                    {(CUBAN_PROVINCES_MUNICIPALITIES[formData.province] || ['Plaza de la Revolución']).map(muni => (
+                      <option key={muni} value={muni}>{muni}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label className="font-bold text-[10px] uppercase tracking-widest ml-1">Localidad</Label>
-                  <Input value={formData.locality} onChange={e => setFormData({...formData, locality: e.target.value})} className="rounded-xl" required />
+                  <Input 
+                    autoComplete="new-locality-admin"
+                    name="admin_store_locality"
+                    value={formData.locality} 
+                    onChange={e => setFormData({...formData, locality: e.target.value})} 
+                    className="rounded-xl h-[40px]" 
+                    required 
+                  />
                 </div>
               </div>
 
@@ -627,16 +786,23 @@ export default function StoreManager() {
                          </div>
                       </div>
                       
-                      <div className="flex items-start gap-4 mt-2">
-                        {logoUrl ? (
-                          <div className="h-14 w-14 p-1.5 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800 shrink-0 shadow-sm">
-                            <img src={getProxyImageUrl(logoUrl)} alt="" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
-                          </div>
-                        ) : (
-                          <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0">
-                            <StoreReactIcon className="h-6 w-6 text-primary" />
-                          </div>
-                        )}
+                      <div className="flex items-start gap-4 mt-2 mb-2">
+                        <div className="flex gap-2 shrink-0">
+                          {logoUrl ? (
+                            <div className="h-14 w-14 p-1.5 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm shrink-0" title="Logo">
+                              <img src={getProxyImageUrl(logoUrl)} alt="" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                            </div>
+                          ) : (
+                            <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0" title="Logo vacío">
+                              <StoreReactIcon className="h-6 w-6 text-primary" />
+                            </div>
+                          )}
+                          {(store.storeImage || store.settings?.storeImage) && (
+                            <div className="h-14 w-20 p-0.5 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden shrink-0" title="Imagen de Tienda">
+                              <img src={getProxyImageUrl(store.storeImage || store.settings?.storeImage)} alt="" className="h-full w-full object-cover rounded-xl" referrerPolicy="no-referrer" />
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <CardTitle className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-tight line-clamp-2">{store.name}</CardTitle>
                           <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">

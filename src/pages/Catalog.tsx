@@ -210,13 +210,31 @@ export default function Catalog() {
   }
 
   if (!store) {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground px-6 py-12 text-center">
+        <div className="bg-primary/5 p-8 rounded-[2.5rem] border border-primary/10 max-w-md shadow-inner mb-6">
+          <StoreIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+          <h2 className="text-2xl font-black tracking-tight mb-2 uppercase">Tienda no encontrada, asere</h2>
+          <p className="text-muted-foreground font-medium text-sm">
+            Esta tienda no existe, se ha mudado de dirección o está temporalmente fuera de servicio. ¡Pero no te preocupes! Puedes ver otras ofertas increíbles en nuestro portal.
+          </p>
+        </div>
+        <Button 
+          size="lg"
+          className="font-black px-10 h-14 rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-transform"
+          render={<Link to="/" />}
+          nativeButton={false}
+        >
+          Volver a la plataforma
+        </Button>
+      </div>
+    );
   }
 
   const s = store.settings;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
+    <div className="flex flex-col min-h-screen bg-background text-foreground w-full overflow-x-hidden">
       <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md px-6">
         <div className="max-w-7xl mx-auto flex h-20 items-center justify-between">
           <div className="flex items-center gap-4">
@@ -224,18 +242,25 @@ export default function Catalog() {
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <Link to={`/store/${storeSlug}`} className="flex items-center gap-4 group">
-              {s.logo ? (
-                <div className="h-16 w-16 p-2 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 group-hover:scale-105 transition-transform">
-                  <img src={getProxyImageUrl(s.logo)} alt={s.name} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
-                </div>
-              ) : (
-                <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20 group-hover:scale-105 transition-transform duration-300">
-                  <StoreIcon className="h-7 w-7 text-white" />
-                </div>
-              )}
-              <div className="hidden sm:flex flex-col">
-                <span className="font-black text-lg uppercase tracking-tighter leading-none group-hover:text-primary transition-colors">{s.name}.</span>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
+              <div className="flex gap-2 items-center">
+                {s.logo ? (
+                  <div className="h-16 w-16 p-2 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 group-hover:scale-105 transition-transform shrink-0">
+                    <img src={getProxyImageUrl(s.logo)} alt={s.name} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                  </div>
+                ) : (
+                  <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20 group-hover:scale-105 transition-transform duration-300 shrink-0">
+                    <StoreIcon className="h-7 w-7 text-white" />
+                  </div>
+                )}
+                {(store.storeImage || s.storeImage) && (
+                  <div className="h-16 w-24 p-1 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden group-hover:scale-105 transition-transform hidden md:block shrink-0">
+                    <img src={getProxyImageUrl(store.storeImage || s.storeImage)} alt="Imagen de Tienda" className="h-full w-full object-cover rounded-xl" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+              </div>
+              <div className="hidden sm:flex flex-col min-w-0 max-w-[180px] md:max-w-[240px]">
+                <span className="font-black text-lg uppercase tracking-tighter leading-none group-hover:text-primary transition-colors truncate">{s.name}.</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mt-1 truncate" title={formatLocation(store.location)}>
                   {formatLocation(store.location)}
                 </span>
               </div>
@@ -299,29 +324,29 @@ export default function Catalog() {
             ) : (
               <Button 
                 onClick={handleLogin}
-                className="rounded-2xl font-black text-[10px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 uppercase tracking-widest h-12 px-4 shadow-sm transition-all"
+                className="rounded-2xl font-black text-[10px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 uppercase tracking-widest h-12 px-3 sm:px-4 shadow-sm transition-all"
               >
-                <LogIn className="mr-2 h-3.5 w-3.5" /> Iniciar Sesión (Admin)
+                <LogIn className="sm:mr-2 h-3.5 w-3.5" /> <span className="hidden sm:inline">Iniciar Sesión (Admin)</span>
               </Button>
             )}
             <Button 
               variant="default" 
-              className="relative rounded-full px-8 h-14 font-bold shadow-lg shadow-primary/30 bg-primary hover:bg-primary/95 group transition-all"
+              className="relative rounded-full px-3 sm:px-8 h-12 sm:h-14 font-bold shadow-lg shadow-primary/30 bg-primary hover:bg-primary/95 group transition-all"
               render={<Link to="/Cart" />}
               nativeButton={false}
             >
-              <div className="flex items-center gap-3">
-                 <div className="h-11 w-11 bg-white/25 rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform overflow-hidden">
+              <div className="flex items-center gap-2 sm:gap-3">
+                 <div className="h-9 w-9 sm:h-11 sm:w-11 bg-white/25 rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform overflow-hidden">
                     {platformLogo ? (
                       <img src={getProxyImageUrl(platformLogo)} alt="" className="h-full w-full object-contain p-0.5" referrerPolicy="no-referrer" />
                     ) : (
-                      <ShoppingCart className="h-6 w-6 text-white" />
+                      <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                     )}
                  </div>
                  <span className="hidden sm:inline uppercase text-[11px] tracking-widest font-black text-white">Mi Carrito</span>
               </div>
               {count > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-6 w-5 min-w-[1.25rem] flex items-center justify-center p-0.5 rounded-full border-2 border-white bg-amber-500 text-[10px] font-black text-white">
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 sm:h-6 sm:w-5 min-w-[1.25rem] flex items-center justify-center p-0.5 rounded-full border-2 border-white bg-amber-500 text-[9px] sm:text-[10px] font-black text-white">
                   {count}
                 </Badge>
               )}
@@ -339,14 +364,30 @@ export default function Catalog() {
              <div className="w-full h-full bg-gradient-to-br from-primary/10 to-transparent" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8 md:p-12">
-            <div className="max-w-2xl text-white">
-              <Badge className="bg-primary/20 backdrop-blur-md text-white border-primary/50 mb-4 px-4 py-1 text-[10px] font-black tracking-widest uppercase rounded-full">
-                Tienda Local Oficial
-              </Badge>
-              <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-4 leading-[0.9]">{s.name}.</h1>
-              <p className="text-slate-200 text-lg md:text-xl font-medium max-w-lg leading-relaxed line-clamp-2 italic">
-                "{s.description}"
-              </p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 w-full">
+              <div className="max-w-2xl text-white">
+                <Badge className="bg-primary/20 backdrop-blur-md text-white border-primary/50 mb-4 px-4 py-1 text-[10px] font-black tracking-widest uppercase rounded-full">
+                  Tienda Local Oficial
+                </Badge>
+                <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-4 leading-[0.9]">{s.name}.</h1>
+                <p className="text-slate-200 text-lg md:text-xl font-medium max-w-lg leading-relaxed line-clamp-2 italic">
+                  "{s.description}"
+                </p>
+              </div>
+              
+              {/* Show Logo and Store Image here beautifully */}
+              <div className="flex gap-4 shrink-0 items-center">
+                {s.logo && (
+                  <div className="h-20 w-20 p-2 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-4 border-white/10 shrink-0">
+                    <img src={getProxyImageUrl(s.logo)} alt={s.name} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+                {(store.storeImage || s.storeImage) && (
+                  <div className="h-20 w-32 p-1 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-4 border-white/10 overflow-hidden shrink-0">
+                    <img src={getProxyImageUrl(store.storeImage || s.storeImage)} alt="Tienda" className="h-full w-full object-cover rounded-[1.25rem]" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -434,9 +475,9 @@ export default function Catalog() {
             </div>
           </div>
           
-          <div className="sticky top-20 z-40 -mx-4 px-4 py-3 bg-background/95 backdrop-blur-sm border-y mb-2 overflow-hidden">
+          <div className="sticky top-20 z-40 -mx-4 px-4 py-2 bg-background/95 backdrop-blur-sm border-y mb-2">
             <div className="relative max-w-full group">
-              <div className="flex gap-2 overflow-x-auto pb-4 pt-1 px-4 -mb-4 scroll-smooth no-scrollbar">
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start pb-2 pt-1 px-4">
                 <Button 
                   variant={selectedCategory === null ? "default" : "outline"} 
                   onClick={() => setSelectedCategory(null)}
@@ -527,7 +568,15 @@ export default function Catalog() {
                   </Link>
                 )}
                 <Link to="/Cart" className="hover:text-primary transition-colors text-sm font-bold uppercase tracking-widest px-1 mt-2">Mi Carrito</Link>
-                <a href={`https://wa.me/${s.whatsappNumber.replace(/\D/g, '')}`} className="hover:text-primary transition-colors text-sm" target="_blank" rel="noreferrer">Atención Directa</a>
+                <a 
+                  href={`https://wa.me/${s.whatsappNumber.replace(/\D/g, '')}`} 
+                  className="flex items-center gap-2 hover:text-primary transition-colors text-sm font-black uppercase tracking-widest px-3 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 w-fit transition-all mt-1" 
+                  target="_blank" 
+                  rel="noreferrer"
+                >
+                  <WhatsAppIcon className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Atención Directa</span>
+                </a>
               </div>
               <div className="space-y-6">
                 <h4 className="text-[10px] font-black uppercase tracking-[3px] text-primary mb-2">Contacto Local</h4>
@@ -683,7 +732,30 @@ function ProductCard({ product, addToCart, settings, platformLogo }: ProductCard
                >
                 <ChevronDown className="h-3 w-3" />
                </Button>
-               <span className="w-6 text-center font-black text-xs">{quantity}</span>
+               <input 
+                  type="number" 
+                  min={1}
+                  className="w-12 text-center font-black text-xs bg-transparent border-none outline-none focus:ring-0 p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                  value={quantity}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val >= 1) {
+                      if (val * packagingUnits <= product.stock) {
+                        setQuantity(val);
+                      } else {
+                        const maxPackages = Math.floor(product.stock / packagingUnits);
+                        setQuantity(Math.max(1, maxPackages));
+                      }
+                    } else if (e.target.value === '') {
+                      setQuantity('' as any);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (quantity === '' || isNaN(Number(quantity)) || Number(quantity) < 1) {
+                      setQuantity(1);
+                    }
+                  }}
+               />
                <Button 
                 variant="ghost" 
                 size="icon" 
@@ -728,51 +800,61 @@ function ProductCard({ product, addToCart, settings, platformLogo }: ProductCard
           </div>
 
           {/* Wholesale Tiers Display */}
-          {currentPackingDisplay && currentPackingDisplay.wholesaleTiers && currentPackingDisplay.wholesaleTiers.length > 0 && (
-            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Escalas de Mayoreo (Haz clic para seleccionar)</p>
-              <div className="grid grid-cols-1 gap-1.5">
-                {currentPackingDisplay.wholesaleTiers
-                  .filter(t => (t.minPackages * packagingUnits) <= product.stock)
-                  .sort((a, b) => a.minPackages - b.minPackages)
-                  .map((tier, idx) => (
-                  <div 
-                    key={tier.id} 
-                    onClick={() => setQuantity(tier.minPackages)}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer select-none",
-                      quantity === tier.minPackages 
-                        ? "bg-primary/10 border-primary/45 scale-[1.02] shadow-sm ring-1 ring-primary/20" 
-                        : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 hover:border-primary/30 hover:bg-slate-100/50 dark:hover:bg-slate-800/80"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-all",
-                        quantity === tier.minPackages ? "border-primary bg-primary text-white" : "border-slate-300 dark:border-slate-700 bg-transparent"
-                      )}>
-                        {quantity === tier.minPackages && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                        )}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className={cn(
-                          "text-[10px] font-black uppercase text-left",
-                          quantity === tier.minPackages ? "text-primary" : "text-slate-600 dark:text-slate-300"
-                        )}>
-                          {tier.minPackages}+ {cleanPackagingName(currentPackingDisplay.name)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-black text-slate-900 dark:text-white">{tier.pricePerUnit.toLocaleString()}</span>
-                      <span className="text-[8px] font-black text-slate-400 uppercase italic">c/u</span>
-                    </div>
-                  </div>
-                ))}
+          {currentPackingDisplay && currentPackingDisplay.wholesaleTiers && currentPackingDisplay.wholesaleTiers.length > 0 && (() => {
+            const reachableTiersList = currentPackingDisplay.wholesaleTiers
+              .filter(t => (t.minPackages * packagingUnits) <= product.stock)
+              .sort((a, b) => b.minPackages - a.minPackages);
+            const activeTier = reachableTiersList.find(t => quantity >= t.minPackages);
+            const activeTierId = activeTier ? activeTier.id : null;
+
+            return (
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 space-y-2">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Escalas de Mayoreo (Haz clic para seleccionar)</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[...reachableTiersList]
+                    .sort((a, b) => a.minPackages - b.minPackages)
+                    .map((tier) => {
+                      const isActive = activeTierId === tier.id;
+                      return (
+                        <div 
+                          key={tier.id} 
+                          onClick={() => setQuantity(tier.minPackages)}
+                          className={cn(
+                            "flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer select-none",
+                            isActive 
+                              ? "bg-primary/10 border-primary/45 scale-[1.02] shadow-sm ring-1 ring-primary/20" 
+                              : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 hover:border-primary/30 hover:bg-slate-100/50 dark:hover:bg-slate-800/80"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-all",
+                              isActive ? "border-primary bg-primary text-white" : "border-slate-300 dark:border-slate-700 bg-transparent"
+                            )}>
+                              {isActive && (
+                                <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className={cn(
+                                "text-[10px] font-black uppercase text-left",
+                                isActive ? "text-primary" : "text-slate-600 dark:text-slate-300"
+                              )}>
+                                {tier.minPackages}+ {cleanPackagingName(currentPackingDisplay.name)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-sm font-black text-slate-900 dark:text-white">{tier.pricePerUnit.toLocaleString()}</span>
+                            <span className="text-[8px] font-black text-slate-400 uppercase italic">c/u</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </CardContent>
       <CardFooter className="p-6 pt-0">

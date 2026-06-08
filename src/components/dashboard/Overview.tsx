@@ -392,7 +392,18 @@ export default function Overview({ storeId, platformMode }: { storeId?: string, 
           </CardHeader>
           <CardContent className="px-6 pb-6 pt-2 h-[120px] flex flex-col justify-between">
             <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tighter break-all">{stat.value}</div>
+              <div className={cn(
+                "font-black text-slate-900 dark:text-slate-100 tracking-tighter break-all leading-none",
+                stat.value.toString().length > 15
+                  ? "text-base"
+                  : stat.value.toString().length > 11
+                    ? "text-lg"
+                    : stat.value.toString().length > 8
+                      ? "text-xl"
+                      : "text-2xl"
+              )}>
+                {stat.value}
+              </div>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-2 uppercase tracking-wide">
               <TrendingUp className="h-3 w-3 text-emerald-500" />

@@ -71,9 +71,24 @@ export default function AffiliateManager({ storeId }: { storeId?: string }) {
     if (!storeId) return;
     const formData = new FormData(e.currentTarget);
     
+    const nameInput = formData.get('name') as string;
+    let codeInput = (formData.get('code') as string || '').toUpperCase().trim().replace(/\s+/g, '');
+
+    // Auto-generate code from Name/Apodo if user left it blank
+    if (!codeInput) {
+      const sanitizedName = nameInput
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+      const prefix = sanitizedName.substring(0, 6) || 'SOCIO';
+      const randomDigits = Math.floor(100 + Math.random() * 900);
+      codeInput = `${prefix}${randomDigits}`;
+    }
+    
     const affiliateData = {
-      name: formData.get('name') as string,
-      code: (formData.get('code') as string).toUpperCase().replace(/\s+/g, ''),
+      name: nameInput,
+      code: codeInput,
       phone: formData.get('phone') as string,
       type: formData.get('type') as 'recommendation' | 'direct_sale',
       active: true,
@@ -86,7 +101,7 @@ export default function AffiliateManager({ storeId }: { storeId?: string }) {
     // Check code uniqueness within this store
     const existing = affiliates.find(a => a.code === affiliateData.code && a.id !== editingAffiliate?.id);
     if (existing) {
-      toast.error('Este código ya está en uso, asere. Ponle otro.');
+      toast.error('Este código, apodo o sobrenombre ya está en uso, asere. Ponle otro o déjalo vacío para auto-generar.');
       return;
     }
 
@@ -282,8 +297,8 @@ export default function AffiliateManager({ storeId }: { storeId?: string }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="code" className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Código Identificador (Refer)</Label>
-                  <Input id="code" name="code" defaultValue={editingAffiliate?.code} placeholder="EJ: SOCIO69" required className="h-12 px-6 rounded-xl border-2 border-slate-100 font-bold text-sm uppercase text-amber-600" />
+                  <Label htmlFor="code" className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Código o Apodo (Opcional)</Label>
+                  <Input id="code" name="code" defaultValue={editingAffiliate?.code} placeholder="EJ: EL_LOCO (VACÍO PARA AUTO)" className="h-12 px-6 rounded-xl border-2 border-slate-100 font-bold text-sm uppercase text-amber-600" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Teléfono de Contacto</Label>
